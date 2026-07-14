@@ -1,5 +1,7 @@
 # Stackit
 
+[![Flutter CI](https://github.com/Dr-ona/stackit/actions/workflows/flutter-ci.yml/badge.svg)](https://github.com/Dr-ona/stackit/actions/workflows/flutter-ci.yml)
+
 Stackit is an offline-first English–Arabic vocabulary collector. On Android,
 select English text in another app and choose **Understand with Stackit**. The
 app opens a compact meaning preview and lets you save the word or phrase for
