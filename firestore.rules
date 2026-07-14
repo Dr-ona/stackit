@@ -1,0 +1,143 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users/{userId}/vocabulary
+    // Document ID: locally generated ASCII identifier, 1–100 characters
+    // Fields:
+    //   term: string (required, 1–200)
+    //   arabic: string (required, 1–2,000)
+    //   definition: string (required, 1–4,000)
+    //   createdAt: timestamp (required, immutable)
+    //   updatedAt: timestamp (required, monotonic on update)
+    //   source: string|null (required key, max 500)
+    //   example: string|null (required key, max 2,000)
+    //   reviewCount: int (required, 0–100,000)
+    //   intervalDays: int (required, 0–60)
+    //   nextReviewAt: timestamp|null (required key)
+    //   lastReviewedAt: timestamp|null (required key)
+    //
+    // Ownership is encoded only in the userId path segment. No public
+    // profiles, PII, roles, permissions, or client-writable owner fields exist.
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // UID fields are deliberately forbidden by the strict schema. These
+    // helpers make that ownership decision explicit for creates and updates.
+    function uidUnchanged() {
+      return !('uid' in request.resource.data);
+    }
+
+    function uidNotModified() {
+      return !('uid' in request.resource.data) && !('uid' in resource.data);
+    }
+
+    function hasRequiredVocabularyFields(data) {
+      return data.keys().hasAll([
+        'term',
+        'arabic',
+        'definition',
+        'createdAt',
+        'updatedAt',
+        'source',
+        'example',
+        'reviewCount',
+        'intervalDays',
+        'nextReviewAt',
+        'lastReviewedAt'
+      ]);
+    }
+
+    function hasOnlyVocabularyFields(data) {
+      return data.keys().hasOnly([
+        'term',
+        'arabic',
+        'definition',
+        'createdAt',
+        'updatedAt',
+        'source',
+        'example',
+        'reviewCount',
+        'intervalDays',
+        'nextReviewAt',
+        'lastReviewedAt'
+      ]);
+    }
+
+    function isBoundedString(value, minLength, maxLength) {
+      return value is string &&
+        value.size() >= minLength &&
+        value.size() <= maxLength;
+    }
+
+    function isOptionalBoundedString(value, maxLength) {
+      return value == null ||
+        (value is string && value.size() <= maxLength);
+    }
+
+    function isOptionalTimestamp(value) {
+      return value == null || value is timestamp;
+    }
+
+    function isValidEntryId(entryId) {
+      return entryId.size() >= 1 &&
+        entryId.size() <= 100 &&
+        entryId.matches('^[A-Za-z0-9_-]+$');
+    }
+
+    // This validator is called for every create and update.
+    function isValidVocabulary(data) {
+      return hasRequiredVocabularyFields(data) &&
+        hasOnlyVocabularyFields(data) &&
+        isBoundedString(data.term, 1, 200) &&
+        isBoundedString(data.arabic, 1, 2000) &&
+        isBoundedString(data.definition, 1, 4000) &&
+        data.createdAt is timestamp &&
+        data.createdAt <= request.time + duration.value(5, 'm') &&
+        data.updatedAt is timestamp &&
+        data.updatedAt <= request.time + duration.value(5, 'm') &&
+        isOptionalBoundedString(data.source, 500) &&
+        isOptionalBoundedString(data.example, 2000) &&
+        data.reviewCount is int &&
+        data.reviewCount >= 0 &&
+        data.reviewCount <= 100000 &&
+        data.intervalDays is int &&
+        data.intervalDays >= 0 &&
+        data.intervalDays <= 60 &&
+        isOptionalTimestamp(data.nextReviewAt) &&
+        isOptionalTimestamp(data.lastReviewedAt);
+    }
+
+    match /users/{userId}/vocabulary/{entryId} {
+      allow read: if isOwner(userId);
+
+      allow create: if isOwner(userId) &&
+        isValidEntryId(entryId) &&
+        uidUnchanged() &&
+        isValidVocabulary(request.resource.data);
+
+      allow update: if isOwner(userId) &&
+        isValidEntryId(entryId) &&
+        uidNotModified() &&
+        request.resource.data.createdAt == resource.data.createdAt &&
+        request.resource.data.updatedAt >= resource.data.updatedAt &&
+        isValidVocabulary(request.resource.data);
+
+      allow delete: if isOwner(userId);
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
