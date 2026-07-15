@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 
 import '../models/vocabulary_entry.dart';
+import '../models/language_pair.dart';
 
 abstract interface class VocabularyCloudStore {
   Future<List<VocabularyEntry>> loadEntries(String userId);
@@ -11,6 +12,8 @@ abstract interface class VocabularyCloudStore {
   Future<void> upsertEntries(String userId, Iterable<VocabularyEntry> entries);
 
   Future<void> deleteEntry(String userId, String entryId);
+
+  Future<void> deleteAllEntries(String userId);
 }
 
 class FirestoreVocabularyCloudStore implements VocabularyCloudStore {
@@ -68,36 +71,85 @@ class FirestoreVocabularyCloudStore implements VocabularyCloudStore {
     return _entries(userId).doc(entryId).delete();
   }
 
+  @override
+  Future<void> deleteAllEntries(String userId) async {
+    while (true) {
+      final snapshot = await _entries(userId).limit(400).get();
+      if (snapshot.docs.isEmpty) return;
+      final batch = _firestore.batch();
+      for (final document in snapshot.docs) {
+        batch.delete(document.reference);
+      }
+      await batch.commit();
+    }
+  }
+
   Map<String, dynamic> _toFirestore(VocabularyEntry entry) {
     return {
-      'term': entry.term,
-      'arabic': entry.arabic,
+      'sourceText': entry.sourceText,
+      'translations': entry.translations,
+      'sourceLanguage': entry.sourceLanguage.code,
+      'targetLanguage': entry.targetLanguage.code,
       'definition': entry.definition,
       'createdAt': Timestamp.fromDate(entry.createdAt),
       'updatedAt': Timestamp.fromDate(entry.effectiveUpdatedAt),
       'source': entry.source,
       'example': entry.example,
+      'contextText': entry.contextText,
+      'contextualExplanation': entry.contextualExplanation,
+      'contextualExample': entry.contextualExample,
+      'relatedPhrases': entry.relatedPhrases,
       'reviewCount': entry.reviewCount,
       'intervalDays': entry.intervalDays,
       'nextReviewAt': _timestamp(entry.nextReviewAt),
       'lastReviewedAt': _timestamp(entry.lastReviewedAt),
+      'dictionaryRevision': entry.dictionaryRevision,
     };
   }
 
   VocabularyEntry _fromFirestore(String id, Map<String, dynamic> data) {
+    final legacyTranslation = data['arabic'] as String?;
+    final translations = switch (data['translations']) {
+      final List<dynamic> values => values.whereType<String>().toList(
+        growable: false,
+      ),
+      _ when legacyTranslation != null =>
+        legacyTranslation
+            .split(RegExp(r'\s*[؛;]\s*'))
+            .where((value) => value.trim().isNotEmpty)
+            .toList(growable: false),
+      _ => const <String>[],
+    };
     return VocabularyEntry(
       id: id,
-      term: data['term'] as String? ?? '',
-      arabic: data['arabic'] as String? ?? '',
+      sourceText:
+          data['sourceText'] as String? ?? data['term'] as String? ?? '',
+      translations: translations,
+      sourceLanguage: VocabularyLanguage.fromCode(
+        data['sourceLanguage'] as String? ?? 'en',
+      ),
+      targetLanguage: VocabularyLanguage.fromCode(
+        data['targetLanguage'] as String? ?? 'ar',
+      ),
       definition: data['definition'] as String? ?? '',
       createdAt: _date(data['createdAt']) ?? DateTime.now(),
       updatedAt: _date(data['updatedAt']),
       source: data['source'] as String?,
       example: data['example'] as String?,
+      contextText: data['contextText'] as String?,
+      contextualExplanation: data['contextualExplanation'] as String?,
+      contextualExample: data['contextualExample'] as String?,
+      relatedPhrases: switch (data['relatedPhrases']) {
+        final List<dynamic> values => values.whereType<String>().toList(
+          growable: false,
+        ),
+        _ => const [],
+      },
       reviewCount: data['reviewCount'] as int? ?? 0,
       intervalDays: data['intervalDays'] as int? ?? 0,
       nextReviewAt: _date(data['nextReviewAt']),
       lastReviewedAt: _date(data['lastReviewedAt']),
+      dictionaryRevision: data['dictionaryRevision'] as int? ?? 0,
     );
   }
 

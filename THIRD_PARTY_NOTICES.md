@@ -12,6 +12,8 @@ the Arabeyes Arabic Wordlist.
 - Local licence text:
   `third_party/freedict/eng-ara-0.6.3/eng-ara/COPYING`
 
-The generated `freedict_en_ar.stkdict.gz` file is a normalized, indexed, and
-compressed representation of the source TEI data. Stackit's hand-curated seed
-entries remain separate and take precedence at lookup time.
+The generated `freedict_en_ar.stkdict.gz` and `freedict_ar_en.stkdict.gz`
+files are normalized, indexed, and compressed representations of the source
+TEI data. The second index reverses the same bilingual source; it is not a
+separate dictionary. Stackit's hand-curated seed entries remain separate and
+take precedence at lookup time.

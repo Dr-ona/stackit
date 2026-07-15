@@ -8,13 +8,19 @@ service cloud.firestore {
     // Collection: users/{userId}/vocabulary
     // Document ID: locally generated ASCII identifier, 1–100 characters
     // Fields:
-    //   term: string (required, 1–200)
-    //   arabic: string (required, 1–2,000)
+    //   sourceText: string (required, 1–200)
+    //   translations: list (required, 1–32 alternatives)
+    //   sourceLanguage/targetLanguage: BCP-47-like language codes
+    //   dictionaryRevision: int (required, non-negative)
     //   definition: string (required, 1–4,000)
     //   createdAt: timestamp (required, immutable)
     //   updatedAt: timestamp (required, monotonic on update)
     //   source: string|null (required key, max 500)
     //   example: string|null (required key, max 2,000)
+    //   contextText: string|null (required key, max 4,000)
+    //   contextualExplanation: string|null (required key, max 4,000)
+    //   contextualExample: string|null (required key, max 2,000)
+    //   relatedPhrases: list (required, 0–4 strings, each max 500)
     //   reviewCount: int (required, 0–100,000)
     //   intervalDays: int (required, 0–60)
     //   nextReviewAt: timestamp|null (required key)
@@ -44,13 +50,20 @@ service cloud.firestore {
 
     function hasRequiredVocabularyFields(data) {
       return data.keys().hasAll([
-        'term',
-        'arabic',
+        'sourceText',
+        'translations',
+        'sourceLanguage',
+        'targetLanguage',
+        'dictionaryRevision',
         'definition',
         'createdAt',
         'updatedAt',
         'source',
         'example',
+        'contextText',
+        'contextualExplanation',
+        'contextualExample',
+        'relatedPhrases',
         'reviewCount',
         'intervalDays',
         'nextReviewAt',
@@ -60,13 +73,20 @@ service cloud.firestore {
 
     function hasOnlyVocabularyFields(data) {
       return data.keys().hasOnly([
-        'term',
-        'arabic',
+        'sourceText',
+        'translations',
+        'sourceLanguage',
+        'targetLanguage',
+        'dictionaryRevision',
         'definition',
         'createdAt',
         'updatedAt',
         'source',
         'example',
+        'contextText',
+        'contextualExplanation',
+        'contextualExample',
+        'relatedPhrases',
         'reviewCount',
         'intervalDays',
         'nextReviewAt',
@@ -89,18 +109,88 @@ service cloud.firestore {
       return value == null || value is timestamp;
     }
 
+    function isLanguageCode(value) {
+      return value is string &&
+        value.size() >= 2 &&
+        value.size() <= 20 &&
+        value.matches('^[A-Za-z]{2,3}([_-][A-Za-z]{2,8})*$');
+    }
+
+    function isValidTranslations(value) {
+      return value is list &&
+        value.size() >= 1 &&
+        value.size() <= 32 &&
+        isValidTranslationAt(value, 0) &&
+        isValidTranslationAt(value, 1) &&
+        isValidTranslationAt(value, 2) &&
+        isValidTranslationAt(value, 3) &&
+        isValidTranslationAt(value, 4) &&
+        isValidTranslationAt(value, 5) &&
+        isValidTranslationAt(value, 6) &&
+        isValidTranslationAt(value, 7) &&
+        isValidTranslationAt(value, 8) &&
+        isValidTranslationAt(value, 9) &&
+        isValidTranslationAt(value, 10) &&
+        isValidTranslationAt(value, 11) &&
+        isValidTranslationAt(value, 12) &&
+        isValidTranslationAt(value, 13) &&
+        isValidTranslationAt(value, 14) &&
+        isValidTranslationAt(value, 15) &&
+        isValidTranslationAt(value, 16) &&
+        isValidTranslationAt(value, 17) &&
+        isValidTranslationAt(value, 18) &&
+        isValidTranslationAt(value, 19) &&
+        isValidTranslationAt(value, 20) &&
+        isValidTranslationAt(value, 21) &&
+        isValidTranslationAt(value, 22) &&
+        isValidTranslationAt(value, 23) &&
+        isValidTranslationAt(value, 24) &&
+        isValidTranslationAt(value, 25) &&
+        isValidTranslationAt(value, 26) &&
+        isValidTranslationAt(value, 27) &&
+        isValidTranslationAt(value, 28) &&
+        isValidTranslationAt(value, 29) &&
+        isValidTranslationAt(value, 30) &&
+        isValidTranslationAt(value, 31);
+    }
+
+    function isValidTranslationAt(value, index) {
+      return value.size() <= index ||
+        isBoundedString(value[index], 1, 2000);
+    }
+
     function isValidEntryId(entryId) {
       return entryId.size() >= 1 &&
         entryId.size() <= 100 &&
         entryId.matches('^[A-Za-z0-9_-]+$');
     }
 
+    function isValidRelatedPhrases(value) {
+      return value is list &&
+        value.size() <= 4 &&
+        isValidRelatedPhraseAt(value, 0) &&
+        isValidRelatedPhraseAt(value, 1) &&
+        isValidRelatedPhraseAt(value, 2) &&
+        isValidRelatedPhraseAt(value, 3);
+    }
+
+    function isValidRelatedPhraseAt(value, index) {
+      return value.size() <= index ||
+        isBoundedString(value[index], 1, 500);
+    }
+
     // This validator is called for every create and update.
     function isValidVocabulary(data) {
       return hasRequiredVocabularyFields(data) &&
         hasOnlyVocabularyFields(data) &&
-        isBoundedString(data.term, 1, 200) &&
-        isBoundedString(data.arabic, 1, 2000) &&
+        isBoundedString(data.sourceText, 1, 200) &&
+        isValidTranslations(data.translations) &&
+        isLanguageCode(data.sourceLanguage) &&
+        isLanguageCode(data.targetLanguage) &&
+        data.sourceLanguage != data.targetLanguage &&
+        data.dictionaryRevision is int &&
+        data.dictionaryRevision >= 0 &&
+        data.dictionaryRevision <= 100000 &&
         isBoundedString(data.definition, 1, 4000) &&
         data.createdAt is timestamp &&
         data.createdAt <= request.time + duration.value(5, 'm') &&
@@ -108,6 +198,10 @@ service cloud.firestore {
         data.updatedAt <= request.time + duration.value(5, 'm') &&
         isOptionalBoundedString(data.source, 500) &&
         isOptionalBoundedString(data.example, 2000) &&
+        isOptionalBoundedString(data.contextText, 4000) &&
+        isOptionalBoundedString(data.contextualExplanation, 4000) &&
+        isOptionalBoundedString(data.contextualExample, 2000) &&
+        isValidRelatedPhrases(data.relatedPhrases) &&
         data.reviewCount is int &&
         data.reviewCount >= 0 &&
         data.reviewCount <= 100000 &&

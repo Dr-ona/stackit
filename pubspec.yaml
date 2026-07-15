@@ -1,5 +1,5 @@
 name: stackit
-description: "An offline-first English–Arabic vocabulary collector."
+description: "An offline-first multilingual vocabulary collector."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -35,9 +35,16 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
   firebase_core: ^4.12.0
-  firebase_auth: ^6.5.5
-  cloud_firestore: 6.6.0
+  firebase_auth: 6.5.6
+  cloud_firestore: ^6.7.1
+  cross_file: ^0.3.5+4
   google_sign_in: ^7.2.0
+  firebase_ai: ^3.14.1
+  firebase_app_check: ^0.4.5+2
+  flutter_local_notifications: ^22.0.1
+  flutter_timezone: ^5.1.0
+  share_plus: ^13.2.0
+  timezone: ^0.11.0
 
 dev_dependencies:
   flutter_test:
@@ -64,6 +71,7 @@ flutter:
   assets:
     - assets/dictionaries/en_ar.json
     - assets/dictionaries/freedict_en_ar.stkdict.gz
+    - assets/dictionaries/freedict_ar_en.stkdict.gz
     - assets/licenses/freedict-eng-ara-COPYING.txt
 
   # To add assets to your application, add an assets section, like this:

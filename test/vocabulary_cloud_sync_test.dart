@@ -4,6 +4,7 @@ import 'package:stackit/data/platform_bridge.dart';
 import 'package:stackit/data/vocabulary_cloud_store.dart';
 import 'package:stackit/features/vocabulary/vocabulary_controller.dart';
 import 'package:stackit/models/capture_payload.dart';
+import 'package:stackit/models/language_pair.dart';
 import 'package:stackit/models/vocabulary_entry.dart';
 
 void main() {
@@ -59,7 +60,7 @@ void main() {
     await controller.initialize();
     await controller.syncForUser('user-a');
 
-    expect(controller.entries.single.term, 'newer');
+    expect(controller.entries.single.sourceText, 'newer');
   });
 
   test('signed-in saves go to cloud and sign-out clears device data', () async {
@@ -74,7 +75,7 @@ void main() {
     await Future<void>.delayed(Duration.zero);
 
     expect(cloud.upserted, hasLength(1));
-    expect(cloud.upserted.single.term, 'elusive');
+    expect(cloud.upserted.single.sourceText, 'elusive');
 
     await controller.clearAfterSignOut();
     expect(controller.entries, isEmpty);
@@ -90,8 +91,10 @@ VocabularyEntry _entry(
 }) {
   return VocabularyEntry(
     id: id,
-    term: term ?? id,
-    arabic: 'معنى',
+    sourceText: term ?? id,
+    translations: const ['معنى'],
+    sourceLanguage: VocabularyLanguage.english,
+    targetLanguage: VocabularyLanguage.arabic,
     definition: 'Definition',
     createdAt: createdAt,
     updatedAt: updatedAt ?? createdAt,
@@ -124,6 +127,13 @@ class _MemoryCloudStore implements VocabularyCloudStore {
   Future<void> deleteEntry(String userId, String entryId) async {
     deleted.add(entryId);
   }
+
+  @override
+  Future<void> deleteAllEntries(String userId) async {
+    remote = const [];
+    uploaded = const [];
+    upserted.clear();
+  }
 }
 
 class _MemoryPlatformBridge extends PlatformBridge {
@@ -141,5 +151,5 @@ class _MemoryPlatformBridge extends PlatformBridge {
   }
 
   @override
-  Future<void> speak(String text) async {}
+  Future<void> speak(String text, VocabularyLanguage language) async {}
 }

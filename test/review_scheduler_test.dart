@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stackit/features/review/review_scheduler.dart';
+import 'package:stackit/models/language_pair.dart';
 import 'package:stackit/models/vocabulary_entry.dart';
 
 void main() {
@@ -9,8 +10,10 @@ void main() {
   VocabularyEntry entry({int intervalDays = 0, int reviewCount = 0}) {
     return VocabularyEntry(
       id: 'word-1',
-      term: 'nuance',
-      arabic: 'فرق دقيق',
+      sourceText: 'nuance',
+      translations: const ['فرق دقيق'],
+      sourceLanguage: VocabularyLanguage.english,
+      targetLanguage: VocabularyLanguage.arabic,
       definition: 'A subtle distinction.',
       createdAt: now.subtract(const Duration(days: 1)),
       intervalDays: intervalDays,

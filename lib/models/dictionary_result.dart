@@ -1,25 +1,47 @@
+import 'language_pair.dart';
+
 class DictionaryResult {
   const DictionaryResult({
-    required this.term,
-    required this.arabic,
+    required this.sourceText,
+    required this.translations,
+    required this.sourceLanguage,
+    required this.targetLanguage,
     required this.definition,
     this.partOfSpeech,
     this.example,
   });
 
-  final String term;
-  final String arabic;
+  final String sourceText;
+  final List<String> translations;
+  final VocabularyLanguage sourceLanguage;
+  final VocabularyLanguage targetLanguage;
   final String definition;
   final String? partOfSpeech;
   final String? example;
 
-  factory DictionaryResult.fromJson(Map<String, Object?> json) {
+  String get translationText => translations.join('؛ ');
+
+  factory DictionaryResult.fromLegacyJson(
+    Map<String, Object?> json, {
+    LanguagePair pair = LanguagePair.englishToArabic,
+  }) {
     return DictionaryResult(
-      term: json['term']! as String,
-      arabic: json['arabic']! as String,
+      sourceText: json['term']! as String,
+      translations: splitLegacyTranslations(json['arabic']! as String),
+      sourceLanguage: pair.source,
+      targetLanguage: pair.target,
       definition: json['definition']! as String,
       partOfSpeech: json['partOfSpeech'] as String?,
       example: json['example'] as String?,
     );
   }
+}
+
+List<String> splitLegacyTranslations(String value) {
+  final translations = value
+      .split(RegExp(r'\s*[؛;]\s*'))
+      .map((translation) => translation.trim())
+      .where((translation) => translation.isNotEmpty)
+      .toList(growable: false);
+  return translations.isEmpty ? [value.trim()] : translations;
 }

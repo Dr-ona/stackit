@@ -46,11 +46,48 @@ class MainActivity : FlutterActivity(), TextToSpeech.OnInitListener {
                             result.success(null)
                         }
                     }
+                    "loadLanguagePair" -> {
+                        val preferences = getSharedPreferences(preferencesName, MODE_PRIVATE)
+                        result.success(preferences.getString("language_pair", null))
+                    }
+                    "saveLanguagePair" -> {
+                        val pair = call.arguments as? String
+                        if (pair.isNullOrBlank()) {
+                            result.error("invalid_language_pair", "Expected a language-pair id", null)
+                        } else {
+                            getSharedPreferences(preferencesName, MODE_PRIVATE)
+                                .edit()
+                                .putString("language_pair", pair)
+                                .apply()
+                            result.success(null)
+                        }
+                    }
+                    "loadReviewReminders" -> {
+                        val preferences = getSharedPreferences(preferencesName, MODE_PRIVATE)
+                        result.success(preferences.getBoolean("review_reminders", false))
+                    }
+                    "saveReviewReminders" -> {
+                        val enabled = call.arguments as? Boolean
+                        if (enabled == null) {
+                            result.error("invalid_review_reminders", "Expected a boolean", null)
+                        } else {
+                            getSharedPreferences(preferencesName, MODE_PRIVATE)
+                                .edit()
+                                .putBoolean("review_reminders", enabled)
+                                .apply()
+                            result.success(null)
+                        }
+                    }
                     "speak" -> {
-                        val text = call.arguments as? String
+                        val arguments = call.arguments as? Map<*, *>
+                        val text = arguments?.get("text") as? String
+                        val localeTag = arguments?.get("localeTag") as? String
                         if (text.isNullOrBlank()) {
                             result.error("invalid_text", "Expected text to pronounce", null)
                         } else {
+                            if (!localeTag.isNullOrBlank()) {
+                                textToSpeech?.language = Locale.forLanguageTag(localeTag)
+                            }
                             textToSpeech?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "stackit-pronunciation")
                             result.success(null)
                         }
@@ -84,12 +121,22 @@ class MainActivity : FlutterActivity(), TextToSpeech.OnInitListener {
     }
 
     private fun captureFrom(intent: Intent?): Map<String, String?>? {
-        if (intent?.action != Intent.ACTION_PROCESS_TEXT) return null
-        val selected = intent.getCharSequenceExtra(Intent.EXTRA_PROCESS_TEXT)?.toString()?.trim()
+        val sourceIntent = intent ?: return null
+        val selected = when (sourceIntent.action) {
+            Intent.ACTION_PROCESS_TEXT -> sourceIntent
+                .getCharSequenceExtra(Intent.EXTRA_PROCESS_TEXT)
+                ?.toString()
+                ?.trim()
+            Intent.ACTION_SEND -> sourceIntent
+                .getCharSequenceExtra(Intent.EXTRA_TEXT)
+                ?.toString()
+                ?.trim()
+            else -> null
+        }
         if (selected.isNullOrBlank()) return null
         return mapOf(
             "text" to selected,
-            "source" to intent.getStringExtra(Intent.EXTRA_REFERRER_NAME),
+            "source" to sourceIntent.getStringExtra(Intent.EXTRA_REFERRER_NAME),
         )
     }
 }

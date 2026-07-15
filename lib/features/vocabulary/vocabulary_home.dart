@@ -2,10 +2,16 @@ import 'package:flutter/material.dart';
 
 import '../../data/auth_service.dart';
 import '../../models/capture_payload.dart';
+import '../../models/language_pair.dart';
 import '../../models/vocabulary_entry.dart';
 import '../review/review_page.dart';
 import 'capture_preview_sheet.dart';
+import 'account_settings_sheet.dart';
+import 'language_pair_sheet.dart';
+import 'library_entry_tile.dart';
+import 'translation_meaning_list.dart';
 import 'vocabulary_controller.dart';
+import 'vocabulary_entry_detail_sheet.dart';
 
 class VocabularyHome extends StatefulWidget {
   const VocabularyHome({
@@ -24,6 +30,7 @@ class VocabularyHome extends StatefulWidget {
 class _VocabularyHomeState extends State<VocabularyHome> {
   int _page = 0;
   bool _sheetOpen = false;
+  bool _languageSheetOpen = false;
 
   @override
   void initState() {
@@ -40,11 +47,33 @@ class _VocabularyHomeState extends State<VocabularyHome> {
 
   void _onControllerChanged() {
     if (mounted) setState(() {});
-    if (_sheetOpen || widget.controller.pendingCapture == null) return;
+    if (widget.controller.isReady &&
+        !widget.controller.hasChosenLanguagePair &&
+        !_languageSheetOpen) {
+      _languageSheetOpen = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) => _chooseLanguage());
+      return;
+    }
+    if (_sheetOpen ||
+        _languageSheetOpen ||
+        widget.controller.pendingCapture == null) {
+      return;
+    }
     final capture = widget.controller.takePendingCapture();
     if (capture == null) return;
     _sheetOpen = true;
     WidgetsBinding.instance.addPostFrameCallback((_) => _showCapture(capture));
+  }
+
+  Future<void> _chooseLanguage() async {
+    if (!mounted) return;
+    await showLanguagePairSheet(
+      context,
+      widget.controller,
+      requiredSelection: true,
+    );
+    _languageSheetOpen = false;
+    _onControllerChanged();
   }
 
   Future<void> _showCapture(CapturePayload capture) async {
@@ -62,7 +91,11 @@ class _VocabularyHomeState extends State<VocabularyHome> {
   @override
   Widget build(BuildContext context) {
     final pages = [
-      _Inbox(controller: widget.controller, authService: widget.authService),
+      _Inbox(
+        controller: widget.controller,
+        authService: widget.authService,
+        onStartReview: () => setState(() => _page = 1),
+      ),
       ReviewPage(controller: widget.controller),
       _Library(controller: widget.controller),
     ];
@@ -93,13 +126,19 @@ class _VocabularyHomeState extends State<VocabularyHome> {
 }
 
 class _Inbox extends StatelessWidget {
-  const _Inbox({required this.controller, required this.authService});
+  const _Inbox({
+    required this.controller,
+    required this.authService,
+    required this.onStartReview,
+  });
 
   final VocabularyController controller;
   final AuthService authService;
+  final VoidCallback onStartReview;
 
   @override
   Widget build(BuildContext context) {
+    final inboxEntries = controller.inboxEntries;
     return CustomScrollView(
       slivers: [
         SliverPadding(
@@ -129,6 +168,14 @@ class _Inbox extends StatelessWidget {
                               fontWeight: FontWeight.w700,
                               letterSpacing: -0.8,
                             ),
+                      ),
+                      const SizedBox(height: 5),
+                      const Text(
+                        'New words stay here until their first review.',
+                        style: TextStyle(
+                          color: Color(0xFF657069),
+                          fontSize: 12,
+                        ),
                       ),
                       if (controller.isSyncing) ...[
                         const SizedBox(height: 5),
@@ -162,36 +209,68 @@ class _Inbox extends StatelessWidget {
                     borderRadius: BorderRadius.circular(99),
                   ),
                   child: Text(
-                    '${controller.entries.length} saved',
+                    '${inboxEntries.length} new',
                     style: const TextStyle(fontWeight: FontWeight.w700),
                   ),
                 ),
                 const SizedBox(width: 8),
                 IconButton(
-                  tooltip: 'Sign out',
-                  onPressed: authService.signOut,
-                  icon: const Icon(Icons.logout_rounded),
+                  tooltip: 'Account and settings',
+                  onPressed: () => showAccountSettings(
+                    context,
+                    controller: controller,
+                    authService: authService,
+                  ),
+                  icon: const Icon(Icons.settings_outlined),
                 ),
               ],
             ),
           ),
         ),
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 18),
+          sliver: SliverToBoxAdapter(
+            child: OutlinedButton.icon(
+              onPressed: () => showLanguagePairSheet(context, controller),
+              icon: const Icon(Icons.translate_rounded),
+              label: Text(controller.languagePair.label),
+            ),
+          ),
+        ),
+        if (controller.isReady && inboxEntries.isNotEmpty)
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 18),
+            sliver: SliverToBoxAdapter(
+              child: FilledButton.icon(
+                onPressed: onStartReview,
+                icon: const Icon(Icons.school_outlined),
+                label: Text(
+                  'Start reviewing ${inboxEntries.length} new '
+                  '${inboxEntries.length == 1 ? 'word' : 'words'}',
+                ),
+              ),
+            ),
+          ),
         if (!controller.isReady)
           const SliverFillRemaining(
             child: Center(child: CircularProgressIndicator()),
           )
-        else if (controller.entries.isEmpty)
-          const SliverFillRemaining(hasScrollBody: false, child: _EmptyInbox())
+        else if (inboxEntries.isEmpty)
+          SliverFillRemaining(
+            hasScrollBody: false,
+            child: _EmptyInbox(
+              pair: controller.languagePair,
+              totalSaved: controller.entries.length,
+            ),
+          )
         else
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
             sliver: SliverList.separated(
-              itemCount: controller.entries.length,
+              itemCount: inboxEntries.length,
               separatorBuilder: (_, _) => const SizedBox(height: 10),
-              itemBuilder: (context, index) => _WordCard(
-                entry: controller.entries[index],
-                controller: controller,
-              ),
+              itemBuilder: (context, index) =>
+                  _WordCard(entry: inboxEntries[index], controller: controller),
             ),
           ),
       ],
@@ -200,7 +279,10 @@ class _Inbox extends StatelessWidget {
 }
 
 class _EmptyInbox extends StatelessWidget {
-  const _EmptyInbox();
+  const _EmptyInbox({required this.pair, required this.totalSaved});
+
+  final LanguagePair pair;
+  final int totalSaved;
 
   @override
   Widget build(BuildContext context) {
@@ -216,11 +298,14 @@ class _EmptyInbox extends StatelessWidget {
               color: Color(0xFFE3ECE6),
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.text_fields_rounded, size: 38),
+            child: Icon(
+              totalSaved == 0 ? Icons.text_fields_rounded : Icons.check_rounded,
+              size: 38,
+            ),
           ),
           const SizedBox(height: 24),
           Text(
-            'Meet a word worth keeping?',
+            totalSaved == 0 ? 'Meet a word worth keeping?' : 'Inbox clear',
             textAlign: TextAlign.center,
             style: Theme.of(
               context,
@@ -228,7 +313,11 @@ class _EmptyInbox extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           Text(
-            'Highlight English text in another app, then choose “Stackit” to understand and save it.',
+            totalSaved == 0
+                ? 'Highlight ${pair.source.label} text in another app, then choose “Stackit”. '
+                      'If it is not listed, tap Share and choose Stackit instead.'
+                : 'No new words are waiting. Your $totalSaved saved '
+                      '${totalSaved == 1 ? 'word is' : 'words are'} still searchable in Library.',
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
               color: const Color(0xFF657069),
@@ -263,45 +352,75 @@ class _WordCard extends StatelessWidget {
       ),
       onDismissed: (_) => controller.delete(entry.id),
       child: Card(
+        clipBehavior: Clip.antiAlias,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 18, 12, 18),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      entry.term,
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Directionality(
-                      textDirection: TextDirection.rtl,
-                      child: Align(
-                        alignment: Alignment.centerRight,
-                        child: Text(
-                          entry.arabic,
-                          style: Theme.of(context).textTheme.titleMedium
-                              ?.copyWith(
-                                color: const Color(0xFF356859),
-                                fontWeight: FontWeight.w700,
+        child: InkWell(
+          onTap: () => showVocabularyEntryDetails(
+            context,
+            entry: entry,
+            controller: controller,
+          ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 18, 8, 18),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              entry.sourceText,
+                              textDirection: _textDirection(
+                                entry.sourceLanguage,
                               ),
-                        ),
+                              style: Theme.of(context).textTheme.titleLarge
+                                  ?.copyWith(fontWeight: FontWeight.w700),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFC6DDD2),
+                              borderRadius: BorderRadius.circular(99),
+                            ),
+                            child: const Text(
+                              'NEW',
+                              style: TextStyle(
+                                color: Color(0xFF275E50),
+                                fontSize: 10,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 0.8,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 6),
+                      TranslationMeaningList(
+                        translations: entry.translations,
+                        language: entry.targetLanguage,
+                        compact: true,
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              IconButton(
-                tooltip: 'Pronounce',
-                onPressed: () => controller.speak(entry.term),
-                icon: const Icon(Icons.volume_up_outlined),
-              ),
-            ],
+                IconButton(
+                  tooltip: 'Pronounce',
+                  onPressed: () =>
+                      controller.speak(entry.sourceText, entry.sourceLanguage),
+                  icon: const Icon(Icons.volume_up_outlined),
+                ),
+                const Icon(Icons.chevron_right_rounded),
+              ],
+            ),
           ),
         ),
       ),
@@ -327,8 +446,10 @@ class _LibraryState extends State<_Library> {
     final matches = widget.controller.entries
         .where(
           (entry) =>
-              entry.term.toLowerCase().contains(normalized) ||
-              entry.arabic.contains(query.trim()),
+              entry.sourceText.toLowerCase().contains(normalized) ||
+              entry.translations.any(
+                (translation) => translation.toLowerCase().contains(normalized),
+              ),
         )
         .toList();
     return Padding(
@@ -341,6 +462,11 @@ class _LibraryState extends State<_Library> {
             style: Theme.of(
               context,
             ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 5),
+          Text(
+            'All ${widget.controller.entries.length} saved words — new and reviewed.',
+            style: const TextStyle(color: Color(0xFF657069)),
           ),
           const SizedBox(height: 18),
           TextField(
@@ -365,17 +491,9 @@ class _LibraryState extends State<_Library> {
                     separatorBuilder: (_, _) => const Divider(height: 1),
                     itemBuilder: (context, index) {
                       final entry = matches[index];
-                      return ListTile(
-                        contentPadding: const EdgeInsets.symmetric(vertical: 5),
-                        title: Text(
-                          entry.term,
-                          style: const TextStyle(fontWeight: FontWeight.w700),
-                        ),
-                        subtitle: Text(
-                          entry.arabic,
-                          textAlign: TextAlign.right,
-                          textDirection: TextDirection.rtl,
-                        ),
+                      return LibraryEntryTile(
+                        entry: entry,
+                        controller: widget.controller,
                       );
                     },
                   ),
@@ -384,4 +502,8 @@ class _LibraryState extends State<_Library> {
       ),
     );
   }
+}
+
+TextDirection _textDirection(VocabularyLanguage language) {
+  return language.isRtl ? TextDirection.rtl : TextDirection.ltr;
 }

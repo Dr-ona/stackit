@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/services.dart';
 
 import '../models/capture_payload.dart';
+import '../models/language_pair.dart';
 import '../models/vocabulary_entry.dart';
 
 class PlatformBridge {
@@ -10,6 +11,8 @@ class PlatformBridge {
 
   Future<void> Function(CapturePayload payload)? onSelectionReceived;
   List<VocabularyEntry> _memoryEntries = const [];
+  String? _memoryLanguagePair;
+  bool _memoryReviewReminders = false;
 
   PlatformBridge() {
     _channel.setMethodCallHandler((call) async {
@@ -56,9 +59,47 @@ class PlatformBridge {
     }
   }
 
-  Future<void> speak(String text) async {
+  Future<LanguagePair?> loadLanguagePair() async {
     try {
-      await _channel.invokeMethod<void>('speak', text);
+      final id = await _channel.invokeMethod<String>('loadLanguagePair');
+      return LanguagePair.tryParse(id);
+    } on MissingPluginException {
+      return LanguagePair.tryParse(_memoryLanguagePair);
+    }
+  }
+
+  Future<void> saveLanguagePair(LanguagePair pair) async {
+    _memoryLanguagePair = pair.id;
+    try {
+      await _channel.invokeMethod<void>('saveLanguagePair', pair.id);
+    } on MissingPluginException {
+      // The in-memory fallback keeps tests and unsupported platforms usable.
+    }
+  }
+
+  Future<bool> loadReviewReminders() async {
+    try {
+      return await _channel.invokeMethod<bool>('loadReviewReminders') ?? false;
+    } on MissingPluginException {
+      return _memoryReviewReminders;
+    }
+  }
+
+  Future<void> saveReviewReminders(bool enabled) async {
+    _memoryReviewReminders = enabled;
+    try {
+      await _channel.invokeMethod<void>('saveReviewReminders', enabled);
+    } on MissingPluginException {
+      // The in-memory fallback keeps tests and unsupported platforms usable.
+    }
+  }
+
+  Future<void> speak(String text, VocabularyLanguage language) async {
+    try {
+      await _channel.invokeMethod<void>('speak', {
+        'text': text,
+        'localeTag': language.localeTag,
+      });
     } on MissingPluginException {
       // Pronunciation is an optional platform capability.
     }

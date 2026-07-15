@@ -6,6 +6,17 @@ String normalizeEnglishTerm(String value) {
       .replaceAll(RegExp(r'\s+'), ' ');
 }
 
+String normalizeArabicTerm(String value) {
+  return value
+      .trim()
+      .replaceAll(RegExp(r'[\u064B-\u065F\u0670\u06D6-\u06ED]'), '')
+      .replaceAll('\u0640', '')
+      .replaceAll(RegExp(r'[أإآٱ]'), 'ا')
+      .replaceAll('ى', 'ي')
+      .replaceAll(RegExp(r'^[^\u0600-\u06FF0-9]+|[^\u0600-\u06FF0-9]+$'), '')
+      .replaceAll(RegExp(r'\s+'), ' ');
+}
+
 Iterable<String> englishBaseFormCandidates(String value) sync* {
   if (value.contains(' ')) return;
   if (value.endsWith('ies') && value.length > 4) {

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../models/vocabulary_entry.dart';
+import '../vocabulary/highlighted_example_text.dart';
+import '../vocabulary/translation_meaning_list.dart';
 import '../vocabulary/vocabulary_controller.dart';
 import 'review_scheduler.dart';
 
@@ -177,7 +179,12 @@ class _Prompt extends StatelessWidget {
         ),
         const Spacer(),
         Text(
-          example == null ? entry.term : '“${_hideTerm(example, entry.term)}”',
+          example == null
+              ? entry.sourceText
+              : '“${_hideTerm(example, entry.sourceText)}”',
+          textDirection: entry.sourceLanguage.isRtl
+              ? TextDirection.rtl
+              : TextDirection.ltr,
           style: Theme.of(context).textTheme.headlineSmall?.copyWith(
             fontWeight: FontWeight.w600,
             height: 1.45,
@@ -186,7 +193,7 @@ class _Prompt extends StatelessWidget {
         const SizedBox(height: 18),
         Text(
           example == null
-              ? 'Can you explain it in Arabic?'
+              ? 'Can you explain it in ${entry.targetLanguage.label}?'
               : 'Which saved word belongs in the blank?',
           style: Theme.of(
             context,
@@ -217,56 +224,57 @@ class _Answer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                entry.term,
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  entry.sourceText,
+                  textDirection: entry.sourceLanguage.isRtl
+                      ? TextDirection.rtl
+                      : TextDirection.ltr,
+                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              const Icon(Icons.check_circle_rounded, color: Color(0xFF356859)),
+            ],
+          ),
+          const SizedBox(height: 20),
+          TranslationMeaningList(
+            translations: entry.translations,
+            language: entry.targetLanguage,
+          ),
+          const SizedBox(height: 18),
+          Text(
+            entry.definition,
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(height: 1.5),
+          ),
+          const SizedBox(height: 18),
+          if (entry.example != null)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF0EEE7),
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: HighlightedExampleText(
+                example: entry.example!,
+                term: entry.sourceText,
+                language: entry.sourceLanguage,
+                style: const TextStyle(
+                  fontStyle: FontStyle.italic,
+                  height: 1.4,
                 ),
               ),
             ),
-            const Icon(Icons.check_circle_rounded, color: Color(0xFF356859)),
-          ],
-        ),
-        const SizedBox(height: 20),
-        Directionality(
-          textDirection: TextDirection.rtl,
-          child: Align(
-            alignment: Alignment.centerRight,
-            child: Text(
-              entry.arabic,
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                color: const Color(0xFF356859),
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 18),
-        Text(
-          entry.definition,
-          style: Theme.of(context).textTheme.bodyLarge?.copyWith(height: 1.5),
-        ),
-        const Spacer(),
-        if (entry.example != null)
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF0EEE7),
-              borderRadius: BorderRadius.circular(18),
-            ),
-            child: Text(
-              '“${entry.example}”',
-              style: const TextStyle(fontStyle: FontStyle.italic, height: 1.4),
-            ),
-          ),
-      ],
+        ],
+      ),
     );
   }
 }

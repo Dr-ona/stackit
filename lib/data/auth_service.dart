@@ -63,6 +63,53 @@ class AuthService {
     if (!kIsWeb) await GoogleSignIn.instance.signOut();
     await _firebaseAuth.signOut();
   }
+
+  bool get requiresPasswordForReauthentication =>
+      currentUser?.providerData.any(
+        (provider) => provider.providerId == EmailAuthProvider.PROVIDER_ID,
+      ) ??
+      false;
+
+  Future<void> reauthenticate({String? password}) async {
+    final user = currentUser;
+    if (user == null) throw const AuthFlowException('You are not signed in.');
+    if (requiresPasswordForReauthentication) {
+      final email = user.email;
+      if (email == null || password == null || password.isEmpty) {
+        throw const AuthFlowException(
+          'Enter your current password to continue.',
+        );
+      }
+      await user.reauthenticateWithCredential(
+        EmailAuthProvider.credential(email: email, password: password),
+      );
+      return;
+    }
+    if (!kIsWeb &&
+        user.providerData.any(
+          (provider) => provider.providerId == GoogleAuthProvider.PROVIDER_ID,
+        )) {
+      final account = await GoogleSignIn.instance.authenticate();
+      final idToken = account.authentication.idToken;
+      if (idToken == null) {
+        throw const AuthFlowException(
+          'Google did not return an identity token.',
+        );
+      }
+      await user.reauthenticateWithCredential(
+        GoogleAuthProvider.credential(idToken: idToken),
+      );
+      return;
+    }
+    await user.reload();
+  }
+
+  Future<void> deleteCurrentUser() async {
+    final user = currentUser;
+    if (user == null) throw const AuthFlowException('You are not signed in.');
+    await user.delete();
+    if (!kIsWeb) await GoogleSignIn.instance.signOut();
+  }
 }
 
 class AuthFlowException implements Exception {

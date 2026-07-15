@@ -6,10 +6,13 @@ import 'package:stackit/data/dictionary_normalization.dart';
 
 const _sourcePath = 'third_party/freedict/eng-ara-0.6.3/eng-ara/eng-ara.tei';
 const _licenseSourcePath = 'third_party/freedict/eng-ara-0.6.3/eng-ara/COPYING';
-const _outputPath = 'assets/dictionaries/freedict_en_ar.stkdict.gz';
+const _englishArabicOutputPath =
+    'assets/dictionaries/freedict_en_ar.stkdict.gz';
+const _arabicEnglishOutputPath =
+    'assets/dictionaries/freedict_ar_en.stkdict.gz';
 const _licenseOutputPath = 'assets/licenses/freedict-eng-ara-COPYING.txt';
 const _magic = 'STKD';
-const _version = 1;
+const _version = 2;
 
 void main() {
   final source = File(_sourcePath);
@@ -21,6 +24,7 @@ void main() {
 
   final xml = source.readAsStringSync();
   final entries = <String, Set<String>>{};
+  final reverseEntries = <String, Set<String>>{};
   final entryPattern = RegExp(
     r'<entry(?:\s[^>]*)?>(.*?)</entry>',
     dotAll: true,
@@ -41,13 +45,36 @@ void main() {
     final translations = entries.putIfAbsent(term, () => <String>{});
     for (final quote in quotePattern.allMatches(block)) {
       final translation = _plainText(quote.group(1)!);
-      if (translation.isNotEmpty && translations.length < 8) {
+      if (translation.isNotEmpty) {
         translations.add(translation);
+        final normalizedArabic = normalizeArabicTerm(translation);
+        if (normalizedArabic.isNotEmpty) {
+          reverseEntries
+              .putIfAbsent(normalizedArabic, () => <String>{})
+              .add(term);
+        }
       }
     }
     if (translations.isEmpty) entries.remove(term);
   }
 
+  final englishArabic = _writeDictionary(_englishArabicOutputPath, entries);
+  final arabicEnglish = _writeDictionary(
+    _arabicEnglishOutputPath,
+    reverseEntries,
+  );
+  final licenseOutput = File(_licenseOutputPath)
+    ..parent.createSync(recursive: true);
+  File(_licenseSourcePath).copySync(licenseOutput.path);
+
+  stdout.writeln('English → Arabic records: ${entries.length}');
+  stdout.writeln('English → Arabic compressed bytes: ${englishArabic.length}');
+  stdout.writeln('Arabic → English records: ${reverseEntries.length}');
+  stdout.writeln('Arabic → English compressed bytes: ${arabicEnglish.length}');
+  stdout.writeln('Licence: ${licenseOutput.path}');
+}
+
+List<int> _writeDictionary(String path, Map<String, Set<String>> entries) {
   final sorted = entries.entries.toList()
     ..sort((a, b) => a.key.compareTo(b.key));
   final records = <Uint8List>[];
@@ -56,7 +83,7 @@ void main() {
 
   for (final entry in sorted) {
     final key = utf8.encode(entry.key);
-    final value = utf8.encode(entry.value.join('؛ '));
+    final value = utf8.encode(jsonEncode(entry.value.toList(growable: false)));
     final record = Uint8List(key.length + 1 + value.length)
       ..setRange(0, key.length, key)
       ..[key.length] = 0
@@ -82,18 +109,10 @@ void main() {
     cursor += record.length;
   }
 
-  final output = File(_outputPath)..parent.createSync(recursive: true);
+  final output = File(path)..parent.createSync(recursive: true);
   final compressed = GZipCodec(level: 9).encode(binary);
   output.writeAsBytesSync(compressed, flush: true);
-  final licenseOutput = File(_licenseOutputPath)
-    ..parent.createSync(recursive: true);
-  File(_licenseSourcePath).copySync(licenseOutput.path);
-
-  stdout.writeln('FreeDict records: ${sorted.length}');
-  stdout.writeln('Uncompressed bytes: ${binary.length}');
-  stdout.writeln('Compressed bytes: ${compressed.length}');
-  stdout.writeln('Output: ${output.path}');
-  stdout.writeln('Licence: ${licenseOutput.path}');
+  return compressed;
 }
 
 String _plainText(String xml) {

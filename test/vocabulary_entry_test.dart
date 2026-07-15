@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:stackit/models/language_pair.dart';
 import 'package:stackit/models/vocabulary_entry.dart';
 
 void main() {
@@ -6,8 +7,10 @@ void main() {
     final createdAt = DateTime.utc(2026, 7, 13, 8, 30);
     final original = VocabularyEntry(
       id: 'entry-1',
-      term: 'nuance',
-      arabic: 'فَرْق دقيق',
+      sourceText: 'nuance',
+      translations: const ['فَرْق دقيق', 'دلالة خفيّة'],
+      sourceLanguage: VocabularyLanguage.english,
+      targetLanguage: VocabularyLanguage.arabic,
       definition: 'A subtle distinction.',
       createdAt: createdAt,
       source: 'reader',
@@ -15,8 +18,9 @@ void main() {
     );
     final restored = VocabularyEntry.fromJson(original.toJson());
     expect(restored.id, original.id);
-    expect(restored.term, original.term);
-    expect(restored.arabic, original.arabic);
+    expect(restored.sourceText, original.sourceText);
+    expect(restored.translations, original.translations);
+    expect(restored.languagePair, LanguagePair.englishToArabic);
     expect(restored.createdAt, createdAt);
     expect(restored.source, 'reader');
   });
@@ -34,5 +38,8 @@ void main() {
     expect(restored.intervalDays, 0);
     expect(restored.nextReviewAt, isNull);
     expect(restored.isDue(DateTime.utc(2026, 7, 13)), isTrue);
+    expect(restored.sourceText, 'elusive');
+    expect(restored.translations, ['صعب المنال']);
+    expect(restored.languagePair, LanguagePair.englishToArabic);
   });
 }

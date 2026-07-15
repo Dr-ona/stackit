@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../../models/capture_payload.dart';
 import '../../models/dictionary_result.dart';
+import '../../models/language_pair.dart';
+import 'highlighted_example_text.dart';
+import 'translation_meaning_list.dart';
 import 'vocabulary_controller.dart';
 
 class CapturePreviewSheet extends StatefulWidget {
@@ -19,40 +22,49 @@ class CapturePreviewSheet extends StatefulWidget {
 }
 
 class _CapturePreviewSheetState extends State<CapturePreviewSheet> {
+  late final LanguagePair _pair = widget.controller.resolveLanguagePair(
+    widget.capture.text,
+  );
   late final Future<DictionaryResult?> _result = widget.controller.lookup(
     widget.capture.text,
+    pair: _pair,
   );
   bool _saving = false;
 
   @override
   Widget build(BuildContext context) {
+    final maxHeight = MediaQuery.sizeOf(context).height * 0.86;
     return SafeArea(
       top: false,
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(
-          24,
-          12,
-          24,
-          20 + MediaQuery.viewInsetsOf(context).bottom,
-        ),
-        child: FutureBuilder<DictionaryResult?>(
-          future: _result,
-          builder: (context, snapshot) {
-            if (!snapshot.hasData &&
-                snapshot.connectionState != ConnectionState.done) {
-              return const SizedBox(
-                height: 220,
-                child: Center(child: CircularProgressIndicator()),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: maxHeight),
+        child: SingleChildScrollView(
+          padding: EdgeInsets.fromLTRB(
+            24,
+            12,
+            24,
+            20 + MediaQuery.viewInsetsOf(context).bottom,
+          ),
+          child: FutureBuilder<DictionaryResult?>(
+            future: _result,
+            builder: (context, snapshot) {
+              if (!snapshot.hasData &&
+                  snapshot.connectionState != ConnectionState.done) {
+                return const SizedBox(
+                  height: 220,
+                  child: Center(child: CircularProgressIndicator()),
+                );
+              }
+              return _PreviewContent(
+                capture: widget.capture,
+                result: snapshot.data,
+                pair: _pair,
+                controller: widget.controller,
+                saving: _saving,
+                onSave: () => _save(snapshot.data),
               );
-            }
-            return _PreviewContent(
-              capture: widget.capture,
-              result: snapshot.data,
-              controller: widget.controller,
-              saving: _saving,
-              onSave: () => _save(snapshot.data),
-            );
-          },
+            },
+          ),
         ),
       ),
     );
@@ -60,7 +72,7 @@ class _CapturePreviewSheetState extends State<CapturePreviewSheet> {
 
   Future<void> _save(DictionaryResult? result) async {
     setState(() => _saving = true);
-    await widget.controller.save(widget.capture, result);
+    await widget.controller.save(widget.capture, result, pair: _pair);
     if (!mounted) return;
     Navigator.pop(context);
     ScaffoldMessenger.of(context).showSnackBar(
@@ -73,6 +85,7 @@ class _PreviewContent extends StatelessWidget {
   const _PreviewContent({
     required this.capture,
     required this.result,
+    required this.pair,
     required this.controller,
     required this.saving,
     required this.onSave,
@@ -80,13 +93,14 @@ class _PreviewContent extends StatelessWidget {
 
   final CapturePayload capture;
   final DictionaryResult? result;
+  final LanguagePair pair;
   final VocabularyController controller;
   final bool saving;
   final VoidCallback onSave;
 
   @override
   Widget build(BuildContext context) {
-    final alreadySaved = controller.contains(capture.text);
+    final alreadySaved = controller.contains(capture.text, pair: pair);
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -102,11 +116,38 @@ class _PreviewContent extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 22),
+        if (pair != controller.languagePair) ...[
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: const Color(0xFFE3ECE6),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.auto_awesome_rounded, size: 20),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Detected ${pair.source.label} text — using ${pair.label} '
+                    'for this capture.',
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
         Row(
           children: [
             Expanded(
               child: Text(
                 capture.text,
+                textDirection: pair.source.isRtl
+                    ? TextDirection.rtl
+                    : TextDirection.ltr,
                 style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                   fontWeight: FontWeight.w700,
                   letterSpacing: -0.6,
@@ -115,27 +156,26 @@ class _PreviewContent extends StatelessWidget {
             ),
             IconButton.filledTonal(
               tooltip: 'Pronounce',
-              onPressed: () => controller.speak(capture.text),
+              onPressed: () => controller.speak(capture.text, pair.source),
               icon: const Icon(Icons.volume_up_rounded),
             ),
           ],
         ),
         const SizedBox(height: 10),
         if (result != null) ...[
-          Directionality(
-            textDirection: TextDirection.rtl,
-            child: Align(
-              alignment: Alignment.centerRight,
-              child: Text(
-                result!.arabic,
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  color: const Color(0xFF356859),
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
+          Text(
+            '${pair.target.label} equivalents',
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+              color: const Color(0xFF657069),
+              fontWeight: FontWeight.w700,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
+          TranslationMeaningList(
+            translations: result!.translations,
+            language: pair.target,
+          ),
+          const SizedBox(height: 12),
           Text(
             result!.definition,
             style: Theme.of(
@@ -144,8 +184,10 @@ class _PreviewContent extends StatelessWidget {
           ),
           if (result!.example != null) ...[
             const SizedBox(height: 14),
-            Text(
-              '“${result!.example}”',
+            HighlightedExampleText(
+              example: result!.example!,
+              term: capture.text,
+              language: pair.source,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 color: const Color(0xFF59655F),
                 fontStyle: FontStyle.italic,
