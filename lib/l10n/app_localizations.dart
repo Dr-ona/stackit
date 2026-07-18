@@ -75,6 +75,11 @@ class AppLocalizations {
     'تعذّر تحميل جميع المعاني. حاول مرة أخرى.',
     'Impossible de charger tous les sens. Réessayez.',
   );
+  String get lookupFailed => _pick(
+    'Dictionary lookup failed. Please try again.',
+    'تعذّر البحث في القاموس. حاول مرة أخرى.',
+    'La recherche dans le dictionnaire a échoué. Réessayez.',
+  );
   String get retry => _pick('Retry', 'إعادة المحاولة', 'Réessayer');
   String translateInto(String language) => _pick(
     'Translate into $language',
@@ -544,6 +549,16 @@ class AppLocalizations {
   );
   String get privacyPolicy =>
       _pick('Privacy policy', 'سياسة الخصوصية', 'Politique de confidentialité');
+  String lastSyncedAt(DateTime date) => _pick(
+    'Last synced: ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}',
+    'آخر مزامنة: ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}',
+    'Dernière sync : ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}',
+  );
+  String get notSyncedYet => _pick(
+    'Not synced yet',
+    'لم تُزامَن بعد',
+    'Pas encore synchronisé',
+  );
   String get signOut => _pick('Sign out', 'تسجيل الخروج', 'Se déconnecter');
   String get deleteAccount => _pick(
     'Delete account and cloud data',
@@ -605,6 +620,172 @@ class AppLocalizations {
     'Terms of Service',
     'شروط الخدمة',
     'Conditions d\'utilisation',
+  );
+
+  // Entry detail sheet
+  String get verifiedMeaning => _pick(
+    '1 verified meaning',
+    'معنى واحد موثّق',
+    '1 sens vérifié',
+  );
+  String verifiedMeanings(int count) => _pick(
+    '$count verified meanings',
+    '$count معانٍ موثّقة',
+    '$count sens vérifiés',
+  );
+  String get explainWithGemini => _pick(
+    'Explain this meaning with Gemini',
+    'اشرح هذا المعنى بالذكاء الاصطناعي',
+    'Expliquer ce sens avec Gemini',
+  );
+  String get capturedFrom => _pick(
+    'Captured from',
+    'مأخوذ من',
+    'Capturé depuis',
+  );
+  String get latestContextualExplanation => _pick(
+    'Latest contextual explanation',
+    'آخر شرح سياقي',
+    'Dernière explication contextuelle',
+  );
+  String get newExample => _pick('New example', 'مثال جديد', 'Nouvel exemple');
+  String get relatedPhrases => _pick(
+    'Related phrases',
+    'عبارات ذات صلة',
+    'Expressions associées',
+  );
+
+  // Sign-in page errors
+  String get enterEmailFirst => _pick(
+    'Enter your email first.',
+    'أدخل بريدك الإلكتروني أولاً.',
+    'Entrez d\'abord votre email.',
+  );
+  String get googleSignInFailed => _pick(
+    'Google Sign-In failed. Please try again.',
+    'فشل تسجيل الدخول بـ Google. حاول مرة أخرى.',
+    'La connexion Google a échoué. Réessayez.',
+  );
+  String get somethingWentWrong => _pick(
+    'Something went wrong. Please try again.',
+    'حدث خطأ ما. حاول مرة أخرى.',
+    'Une erreur s\'est produite. Réessayez.',
+  );
+  String get invalidCredential => _pick(
+    'The email or password is incorrect.',
+    'البريد الإلكتروني أو كلمة المرور غير صحيحة.',
+    'L\'email ou le mot de passe est incorrect.',
+  );
+  String get emailAlreadyInUse => _pick(
+    'An account already uses this email.',
+    'يوجد حساب بهذا البريد الإلكتروني بالفعل.',
+    'Un compte utilise déjà cet email.',
+  );
+  String get weakPassword => _pick(
+    'Choose a stronger password.',
+    'اختر كلمة مرور أقوى.',
+    'Choisissez un mot de passe plus fort.',
+  );
+  String get networkRequestFailed => _pick(
+    'Check your connection and try again.',
+    'تحقق من اتصالك وحاول مرة أخرى.',
+    'Vérifiez votre connexion et réessayez.',
+  );
+  String get tooManyRequests => _pick(
+    'Too many attempts. Please wait and try again.',
+    'محاولات كثيرة جداً. انتظر وحاول مرة أخرى.',
+    'Trop de tentatives. Attendez et réessayez.',
+  );
+  String get authFailed => _pick(
+    'Authentication failed. Please try again.',
+    'فشل المصادقة. حاول مرة أخرى.',
+    'L\'authentification a échoué. Réessayez.',
+  );
+
+  // Controller error messages (accessible without BuildContext)
+  static String offlineMessage(Locale locale) => _pickStatic(locale,
+    'Offline. Saved locally; sync will retry.',
+    'غير متصل. حُفظ محليًا؛ ستتم المحاولة لاحقًا.',
+    'Hors ligne. Enregistré localement ; la synchronisation réessayera.',
+  );
+  static String permissionDeniedCloudMessage(Locale locale) => _pickStatic(locale,
+    'Cloud access was denied. Saved locally; check sign-in or App Check, then retry.',
+    'تم رفض الوصول السحابي. حُفظ محليًا. تحقق من تسجيل الدخول أو App Check ثم أعد المحاولة.',
+    'Accès cloud refusé. Enregistré localement ; vérifiez la connexion ou App Check, puis réessayez.',
+  );
+  static String cloudSyncPausedMessage(Locale locale) => _pickStatic(locale,
+    'Cloud sync paused. Your local words are safe.',
+    'تم إيقاف المزامنة السحابية مؤقتًا. كلماتك المحلية آمنة.',
+    'Synchronisation cloud en pause. Vos mots locaux sont en sécurité.',
+  );
+  static String profileOfflineMessage(Locale locale) => _pickStatic(locale,
+    'Profile is available locally and will sync when online.',
+    'الملف الشخصي متاح محليًا وسيتم مزامنته عند الاتصال.',
+    'Le profil est disponible localement et se synchronisera en ligne.',
+  );
+  static String profilePermissionDeniedMessage(Locale locale) => _pickStatic(locale,
+    'Profile cloud access needs attention. Local settings are safe.',
+    'يحتاج الوصول السحابي للملف الشخصي إلى مراجعة. الإعدادات المحلية آمنة.',
+    'L\'accès cloud au profil nécessite une attention. Les paramètres locaux sont en sécurité.',
+  );
+  static String profileSyncPausedMessage(Locale locale) => _pickStatic(locale,
+    'Profile sync paused. Local settings are safe.',
+    'تم إيقاف مزامنة الملف الشخصي. الإعدادات المحلية آمنة.',
+    'Synchronisation du profil en pause. Les paramètres locaux sont en sécurité.',
+  );
+  static String translationPending(Locale locale) => _pickStatic(locale,
+    'Translation pending',
+    'بانتظار المعنى',
+    'Traduction en attente',
+  );
+  static String meaningNotAvailable(Locale locale) => _pickStatic(locale,
+    'Meaning not available offline yet.',
+    'المعنى غير متاح بدون اتصال.',
+    'Sens non disponible hors ligne.',
+  );
+  static String sameLanguageStudy(Locale locale) => _pickStatic(locale,
+    'Saved for same-language study. Use Find all meanings for definitions and examples.',
+    'حُفظ لدراسة نفس اللغة. استخدم "إيجاد جميع المعاني" للتعريفات والأمثلة.',
+    'Enregistré pour l\'étude dans la même langue. Utilisez Trouver tous les sens pour les définitions et exemples.',
+  );
+  static String signInFirst(Locale locale) => _pickStatic(locale,
+    'Sign in before adding a profile photo.',
+    'سجّل الدخول قبل إضافة صورة الملف الشخصي.',
+    'Connectez-vous avant d\'ajouter une photo de profil.',
+  );
+  static String noOfflineRoutes(Locale locale, String languageName) => _pickStatic(locale,
+    'No offline routes translate into $languageName.',
+    'لا توجد ترجمات متاحة بدون اتصال إلى $languageName.',
+    'Aucune route hors ligne ne traduit en $languageName.',
+  );
+  static String meaningDiscoveryNotConfigured(Locale locale) => _pickStatic(locale,
+    'Meaning discovery is not configured.',
+    'اكتشاف المعاني غير مهيأ.',
+    'La découverte des sens n\'est pas configurée.',
+  );
+  static String contextExplanationUnavailable(Locale locale) => _pickStatic(locale,
+    'Context explanations are not available on this device.',
+    'الشروحات السياقية غير متاحة على هذا الجهاز.',
+    'Les explications contextuelles ne sont pas disponibles sur cet appareil.',
+  );
+
+  static String _pickStatic(Locale locale, String en, String ar, String fr) =>
+      switch (locale.languageCode) {
+        'ar' => ar,
+        'fr' => fr,
+        _ => en,
+      };
+
+  // Empty library
+  String get emptyLibraryTitle => _pick(
+    'Your library is empty',
+    'مكتبتك فارغة',
+    'Votre bibliothèque est vide',
+  );
+  String get emptyLibraryHint => _pick(
+    'Words you save will appear here. Use the Inbox tab to capture new words.',
+    'ستظهر الكلمات التي تحفظها هنا. استخدم علامة الصنداد لالتقاط كلمات جديدة.',
+    'Les mots que vous enregistrez apparaîtront ici. Utilisez l\'onglet Boîte pour capturer de nouveaux mots.',
   );
 }
 

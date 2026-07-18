@@ -8,6 +8,7 @@ import 'package:flutter/foundation.dart';
 import '../../data/offline_dictionary.dart';
 import '../../data/analytics_service.dart';
 import '../../data/platform_bridge.dart';
+import '../../l10n/app_localizations.dart';
 import '../../data/profile_avatar_store.dart';
 import '../../data/crash_reporter.dart';
 import '../../data/contextual_explanation_provider.dart';
@@ -66,6 +67,7 @@ class VocabularyController extends ChangeNotifier {
   String? _explainingEntryId;
   String? _explainingSenseId;
   String? _discoveringMeaningsEntryId;
+  DateTime? _lastCloudSyncTime;
 
   List<VocabularyEntry> get entries => List.unmodifiable(_entries);
   List<VocabularyEntry> get inboxEntries =>
@@ -92,6 +94,8 @@ class VocabularyController extends ChangeNotifier {
   String? get explainingEntryId => _explainingEntryId;
   String? get explainingSenseId => _explainingSenseId;
   String? get discoveringMeaningsEntryId => _discoveringMeaningsEntryId;
+  DateTime? get lastCloudSyncTime => _lastCloudSyncTime;
+  ui.Locale get _locale => ui.PlatformDispatcher.instance.locale;
   int get reviewedCount =>
       _entries.where((entry) => entry.reviewCount > 0).length;
   int get masteredCount => _entries
@@ -190,7 +194,7 @@ class VocabularyController extends ChangeNotifier {
     final routes = LanguagePair.routesTo(language);
     if (routes.isEmpty) {
       throw UnsupportedError(
-        'No offline routes translate into ${language.label}.',
+        AppLocalizations.noOfflineRoutes(_locale, language.label),
       );
     }
     _preferredTarget = language;
@@ -313,13 +317,11 @@ class VocabularyController extends ChangeNotifier {
               translations: [
                 selectedPair.source == selectedPair.target
                     ? capture.text
-                    : selectedPair.target == VocabularyLanguage.arabic
-                    ? 'بانتظار المعنى'
-                    : 'Translation pending',
+                    : AppLocalizations.translationPending(_locale),
               ],
               definition: selectedPair.source == selectedPair.target
-                  ? 'Saved for same-language study. Use Find all meanings for definitions and examples.'
-                  : 'Meaning not available offline yet.',
+                  ? AppLocalizations.sameLanguageStudy(_locale)
+                  : AppLocalizations.meaningNotAvailable(_locale),
             ),
           ],
       sourceLanguage: selectedPair.source,
@@ -355,8 +357,8 @@ class VocabularyController extends ChangeNotifier {
   }) async {
     final service = _contextualExplanationService;
     if (service == null) {
-      throw const ContextualExplanationException(
-        'Context explanations are not available on this device.',
+      throw ContextualExplanationException(
+        AppLocalizations.contextExplanationUnavailable(_locale),
       );
     }
     final selectedSense = entry.senseById(senseId);
@@ -458,8 +460,8 @@ class VocabularyController extends ChangeNotifier {
     final store = _profileAvatarStore;
     final profile = _userProfile;
     if (userId == null || store == null || profile == null) {
-      throw const ProfileAvatarException(
-        'Sign in before adding a profile photo.',
+      throw ProfileAvatarException(
+        AppLocalizations.signInFirst(_locale),
       );
     }
     final path = await store.uploadAvatar(userId, bytes);
@@ -532,6 +534,7 @@ class VocabularyController extends ChangeNotifier {
       await _refreshOutdatedDictionaryEntries(saveLocally: false);
       await _platformBridge.saveEntries(_entries);
       await _cloudStore.upsertEntries(userId, _entries);
+      _lastCloudSyncTime = DateTime.now();
     } catch (error, stackTrace) {
       _reportCloudError(error, stackTrace);
     } finally {
@@ -555,8 +558,8 @@ class VocabularyController extends ChangeNotifier {
   }) async {
     final service = _meaningDiscoveryService;
     if (service == null) {
-      throw const MeaningDiscoveryException(
-        'Meaning discovery is not configured.',
+      throw MeaningDiscoveryException(
+        AppLocalizations.meaningDiscoveryNotConfigured(_locale),
       );
     }
     return service.discoverAllMeanings(
@@ -569,8 +572,8 @@ class VocabularyController extends ChangeNotifier {
   Future<void> enrichEntryWithAllMeanings(VocabularyEntry entry) async {
     final service = _meaningDiscoveryService;
     if (service == null) {
-      throw const MeaningDiscoveryException(
-        'Meaning discovery is not configured.',
+      throw MeaningDiscoveryException(
+        AppLocalizations.meaningDiscoveryNotConfigured(_locale),
       );
     }
     _discoveringMeaningsEntryId = entry.id;
@@ -657,10 +660,10 @@ class VocabularyController extends ChangeNotifier {
       _reportNonFatal(error, stackTrace, operation: 'profile_sync');
       _profileSyncError = switch (error) {
         FirebaseException(code: 'unavailable' || 'deadline-exceeded') =>
-          'Profile is available locally and will sync when online.',
+          AppLocalizations.profileOfflineMessage(_locale),
         FirebaseException(code: 'permission-denied') =>
-          'Profile cloud access needs attention. Local settings are safe.',
-        _ => 'Profile sync paused. Local settings are safe.',
+          AppLocalizations.profilePermissionDeniedMessage(_locale),
+        _ => AppLocalizations.profileSyncPausedMessage(_locale),
       };
       await _platformBridge.saveUserProfile(local, userId: userId);
     } finally {
@@ -717,7 +720,7 @@ class VocabularyController extends ChangeNotifier {
       } catch (error, stackTrace) {
         debugPrint('Stackit profile update failed: $error\n$stackTrace');
         _reportNonFatal(error, stackTrace, operation: 'profile_update');
-        _profileSyncError = 'Profile sync paused. Local settings are safe.';
+        _profileSyncError = AppLocalizations.profileSyncPausedMessage(_locale);
         notifyListeners();
       }
     }());
@@ -754,10 +757,10 @@ class VocabularyController extends ChangeNotifier {
     _reportNonFatal(error, stackTrace, operation: 'vocabulary_sync');
     _cloudSyncError = switch (error) {
       FirebaseException(code: 'unavailable' || 'deadline-exceeded') =>
-        'Offline. Saved locally; sync will retry.',
+        AppLocalizations.offlineMessage(_locale),
       FirebaseException(code: 'permission-denied') =>
-        'Cloud access was denied. Saved locally; check sign-in or App Check, then retry.',
-      _ => 'Cloud sync paused. Your local words are safe.',
+        AppLocalizations.permissionDeniedCloudMessage(_locale),
+      _ => AppLocalizations.cloudSyncPausedMessage(_locale),
     };
   }
 

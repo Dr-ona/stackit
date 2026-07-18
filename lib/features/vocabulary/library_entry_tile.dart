@@ -79,7 +79,7 @@ class LibraryEntryTile extends StatelessWidget {
       ),
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+          padding: const EdgeInsets.fromLTRB(24, 4, 24, 12),
           child: VocabularySenseList(
             senses: entry.senses,
             sourceText: entry.sourceText,

@@ -121,7 +121,7 @@ class _SignInPageState extends State<SignInPage> {
                     const SizedBox(height: 14),
                     Text(
                       _error!,
-                      style: const TextStyle(color: Color(0xFFB3261E)),
+                      style: TextStyle(color: Theme.of(context).colorScheme.error),
                     ),
                   ],
                   const SizedBox(height: 18),
@@ -214,7 +214,7 @@ class _SignInPageState extends State<SignInPage> {
   Future<void> _resetPassword() async {
     final email = _email.text.trim();
     if (email.isEmpty || !email.contains('@')) {
-      setState(() => _error = 'Enter your email first.');
+      setState(() => _error = context.l10n.enterEmailFirst);
       return;
     }
     await _run(() => widget.authService.sendPasswordReset(email));
@@ -236,13 +236,13 @@ class _SignInPageState extends State<SignInPage> {
       if (mounted) setState(() => _error = _messageFor(error));
     } on GoogleSignInException catch (error) {
       if (mounted && error.code != GoogleSignInExceptionCode.canceled) {
-        setState(() => _error = 'Google Sign-In failed. Please try again.');
+        setState(() => _error = context.l10n.googleSignInFailed);
       }
     } on AuthFlowException catch (error) {
       if (mounted) setState(() => _error = error.message);
     } catch (_) {
       if (mounted) {
-        setState(() => _error = 'Something went wrong. Please try again.');
+        setState(() => _error = context.l10n.somethingWentWrong);
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -251,13 +251,13 @@ class _SignInPageState extends State<SignInPage> {
 
   String _messageFor(FirebaseAuthException error) {
     return switch (error.code) {
-      'invalid-credential' => 'The email or password is incorrect.',
-      'email-already-in-use' => 'An account already uses this email.',
-      'invalid-email' => 'Enter a valid email address.',
-      'weak-password' => 'Choose a stronger password.',
-      'network-request-failed' => 'Check your connection and try again.',
-      'too-many-requests' => 'Too many attempts. Please wait and try again.',
-      _ => error.message ?? 'Authentication failed. Please try again.',
+      'invalid-credential' => context.l10n.invalidCredential,
+      'email-already-in-use' => context.l10n.emailAlreadyInUse,
+      'invalid-email' => context.l10n.invalidEmail,
+      'weak-password' => context.l10n.weakPassword,
+      'network-request-failed' => context.l10n.networkRequestFailed,
+      'too-many-requests' => context.l10n.tooManyRequests,
+      _ => error.message ?? context.l10n.authFailed,
     };
   }
 }

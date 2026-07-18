@@ -89,7 +89,7 @@ class _EntryDetails extends StatelessWidget {
                 ),
               ),
               IconButton.filledTonal(
-                tooltip: 'Pronounce',
+                tooltip: context.l10n.pronounce,
                 onPressed: () =>
                     controller.speak(entry.sourceText, entry.sourceLanguage),
                 icon: const Icon(Icons.volume_up_rounded),
@@ -99,8 +99,8 @@ class _EntryDetails extends StatelessWidget {
           const SizedBox(height: 22),
           Text(
             entry.senses.length == 1
-                ? '1 verified meaning'
-                : '${entry.senses.length} verified meanings',
+                ? context.l10n.verifiedMeaning
+                : context.l10n.verifiedMeanings(entry.senses.length),
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
               color: const Color(0xFF657069),
               fontWeight: FontWeight.w800,
@@ -141,7 +141,7 @@ class _EntryDetails extends StatelessWidget {
                   controller.explainingEntryId == entry.id &&
                   controller.explainingSenseId == sense.id;
               return IconButton(
-                tooltip: 'Explain this meaning with Gemini',
+                tooltip: context.l10n.explainWithGemini,
                 onPressed: controller.explainingEntryId == entry.id
                     ? null
                     : () => _requestContextExplanation(
@@ -161,18 +161,18 @@ class _EntryDetails extends StatelessWidget {
           ),
           if (entry.source case final String source when source.isNotEmpty) ...[
             const SizedBox(height: 20),
-            _DetailSection(label: 'Captured from', body: source),
+            _DetailSection(label: context.l10n.capturedFrom, body: source),
           ],
           if (entry.contextualExplanation != null) ...[
             const SizedBox(height: 24),
             _DetailSection(
-              label: 'Latest contextual explanation',
+              label: context.l10n.latestContextualExplanation,
               body: entry.contextualExplanation!,
             ),
             if (entry.contextualExample != null) ...[
               const SizedBox(height: 20),
               _DetailSection.child(
-                label: 'New example',
+                label: context.l10n.newExample,
                 child: ExampleWithTranslation(
                   example: entry.contextualExample!,
                   term: entry.sourceText,
@@ -185,7 +185,7 @@ class _EntryDetails extends StatelessWidget {
             if (entry.relatedPhrases.isNotEmpty) ...[
               const SizedBox(height: 20),
               _DetailSection(
-                label: 'Related phrases',
+                label: context.l10n.relatedPhrases,
                 body: entry.relatedPhrases.join('\n'),
               ),
             ],

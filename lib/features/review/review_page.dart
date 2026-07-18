@@ -301,7 +301,7 @@ class _RatingButtons extends StatelessWidget {
         child: FilledButton(
           style: FilledButton.styleFrom(
             backgroundColor: color,
-            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 14),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           ),
           onPressed: () => onRate(rating),
           child: FittedBox(child: Text(label)),

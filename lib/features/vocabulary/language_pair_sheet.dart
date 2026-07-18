@@ -133,9 +133,12 @@ class _LanguagePairWheelSheetState extends State<_LanguagePairWheelSheet> {
                     onSelected: (value) => setState(() => _source = value),
                   ),
                 ),
-                const Padding(
-                  padding: EdgeInsets.fromLTRB(10, 36, 10, 0),
-                  child: Icon(Icons.arrow_forward_rounded, size: 28),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(10, 36, 10, 0),
+                  child: Directionality(
+                    textDirection: Directionality.of(context),
+                    child: const Icon(Icons.arrow_forward_rounded, size: 28),
+                  ),
                 ),
                 Expanded(
                   child: _LanguageWheel(

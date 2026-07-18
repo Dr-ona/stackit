@@ -200,6 +200,7 @@ class _VocabularyHomeState extends State<VocabularyHome>
           ),
           NavigationDestination(
             icon: const Icon(Icons.refresh_rounded),
+            selectedIcon: const Icon(Icons.refresh),
             label: context.l10n.review,
           ),
           NavigationDestination(
@@ -375,7 +376,7 @@ class _Inbox extends StatelessWidget {
           )
         else
           SliverPadding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
             sliver: SliverList.separated(
               itemCount: inboxEntries.length,
               separatorBuilder: (_, _) => const SizedBox(height: 10),
@@ -596,10 +597,47 @@ class _LibraryState extends State<_Library> {
           Expanded(
             child: matches.isEmpty
                 ? Center(
-                    child: Text(
-                      query.isEmpty
-                          ? context.l10n.emptyLibrary
-                          : context.l10n.noMatches,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 32),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 72,
+                            height: 72,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE3ECE6),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.menu_book_rounded,
+                              size: 34,
+                              color: Color(0xFF356859),
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                          Text(
+                            query.isEmpty
+                                ? context.l10n.emptyLibraryTitle
+                                : context.l10n.noMatches,
+                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w800,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                          if (query.isEmpty) ...[
+                            const SizedBox(height: 8),
+                            Text(
+                              context.l10n.emptyLibraryHint,
+                              style: const TextStyle(
+                                color: Color(0xFF657069),
+                                height: 1.5,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                        ],
+                      ),
                     ),
                   )
                 : ListView.separated(

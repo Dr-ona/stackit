@@ -66,6 +66,34 @@ class _AccountSettingsSheetState extends State<_AccountSettingsSheet> {
             style: const TextStyle(color: Color(0xFF657069)),
           ),
           const SizedBox(height: 18),
+          if (widget.controller.lastCloudSyncTime != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                children: [
+                  const Icon(Icons.cloud_done_outlined, size: 16, color: Color(0xFF657069)),
+                  const SizedBox(width: 6),
+                  Text(
+                    context.l10n.lastSyncedAt(widget.controller.lastCloudSyncTime!),
+                    style: const TextStyle(fontSize: 12, color: Color(0xFF657069)),
+                  ),
+                ],
+              ),
+            )
+          else if (widget.controller.isSyncing)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                children: [
+                  const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)),
+                  const SizedBox(width: 6),
+                  Text(
+                    context.l10n.syncing,
+                    style: const TextStyle(fontSize: 12, color: Color(0xFF657069)),
+                  ),
+                ],
+              ),
+            ),
           ListTile(
             contentPadding: EdgeInsets.zero,
             leading: const Icon(Icons.account_circle_outlined),

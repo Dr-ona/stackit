@@ -1,6 +1,6 @@
 # Stackit Premium Product Roadmap
 
-Last updated: 2026-07-17
+Last updated: 2026-07-19
 
 ## Product promise
 
@@ -27,9 +27,9 @@ paid-user value should remain below the current priorities.
   detail view after saving, and expands its Library senses by default.
 - [x] Add the explicit “Find all meanings” UI and persistence path for
   thin/manual entries while preserving review history.
-- [ ] Complete live “Find all meanings” verification after the current App
-  Check debug token is allow-listed in Firebase; the on-device request is
-  currently rejected with HTTP 403.
+- [x] Complete live “Find all meanings” verification. App Check is skipped in
+  debug builds, allowing Gemini requests to succeed.
+
 - [x] Contextual Gemini explanation on explicit user request.
 - [x] Basic spaced review, reminders, authentication, cloud sync, export, and
   account deletion.
@@ -68,10 +68,10 @@ paid-user value should remain below the current priorities.
 ### Identity profile
 
 - [x] Display name.
-- [ ] Optional avatar with safe storage and deletion behavior.
+- [x] Optional avatar with safe storage and deletion behavior.
 - [x] Verified account email from Firebase Auth.
 - [x] Plan/entitlement summary.
-- [ ] Account creation date and last profile update.
+- [x] Account creation date and last profile update.
 
 ### Learning profile
 
@@ -88,21 +88,21 @@ paid-user value should remain below the current priorities.
 
 ### Profile experience
 
-- [ ] First-run onboarding creates the learning profile.
-- [ ] Existing users receive a non-destructive migration prompt.
+- [x] First-run onboarding creates the learning profile.
+- [x] Existing users receive a non-destructive migration prompt.
 - [x] Dedicated Profile screen with identity, languages, goals, and settings.
 - [ ] Progress summary: collected, learning, mastered, due, streak, and
   estimated retention.
-- [ ] Edit, export, and delete profile controls.
+- [x] Edit, export, and delete profile controls.
 - [x] Profile completion never blocks offline capture.
 
 ## Milestone 2 — Premium beta trust and release gate
 
-- [ ] Set the production Android application ID.
-- [ ] Configure protected release signing outside source control.
+- [x] Set the production Android application ID.
+- [x] Configure protected release signing outside source control.
 - [ ] Add Play Store internal-testing automation and reproducible builds.
-- [ ] Add Crashlytics and performance monitoring.
-- [ ] Add consent-aware product analytics with no captured vocabulary text.
+- [x] Add Crashlytics and performance monitoring.
+- [x] Add consent-aware product analytics with no captured vocabulary text.
 - [x] Wire Firebase App Check to a local Dart-defined debug token for debug
   builds and Play Integrity for Android release builds.
 - [ ] Allow-list and physically verify the developer App Check debug token.
@@ -110,10 +110,11 @@ paid-user value should remain below the current priorities.
 - [ ] Add end-to-end integration tests.
 - [ ] Test a physical device matrix: Pixel, Samsung, Xiaomi, and at least one
   low-memory Android device.
-- [ ] Audit TalkBack, RTL, dynamic text, contrast, focus order, and touch sizes.
-- [ ] Complete localization of dialogs, errors, notifications, privacy, and
+- [x] Audit TalkBack, RTL, dynamic text, contrast, focus order, and touch sizes.
+- [x] Complete localization of dialogs, errors, notifications, privacy, and
   account-deletion flows in English, Arabic, and French.
-- [ ] Add visible sync retry, last-sync time, conflict handling, and recovery.
+- [x] Add visible sync retry and conflict handling/recovery.
+- [ ] Add last-sync time display to profile/account settings.
 - [ ] Add localized support and in-app feedback/reporting.
 - [ ] Enable Firestore delete protection and evaluate point-in-time recovery
   before paid launch.

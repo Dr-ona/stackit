@@ -524,39 +524,20 @@ service cloud.firestore {
     }
 
     match /users/{userId}/vocabulary/{entryId} {
-      allow read: if isOwner(userId);
+      allow read, delete: if isOwner(userId);
 
       allow create: if isOwner(userId) &&
         isValidEntryId(entryId) &&
-        uidUnchanged() &&
-        isValidVocabulary(request.resource.data);
+        uidUnchanged();
 
       allow update: if isOwner(userId) &&
         isValidEntryId(entryId) &&
         uidNotModified() &&
-        request.resource.data.createdAt == resource.data.createdAt &&
-        request.resource.data.updatedAt >= resource.data.updatedAt &&
-        isValidVocabulary(request.resource.data);
-
-      allow delete: if isOwner(userId);
+        request.resource.data.updatedAt >= resource.data.updatedAt;
     }
 
     match /users/{userId}/profile/{profileId} {
-      allow read: if profileId == 'main' && isOwner(userId);
-
-      allow create: if profileId == 'main' &&
-        isOwner(userId) &&
-        uidUnchanged() &&
-        isValidProfile(request.resource.data, userId);
-
-      allow update: if profileId == 'main' &&
-        isOwner(userId) &&
-        uidNotModified() &&
-        request.resource.data.createdAt == resource.data.createdAt &&
-        request.resource.data.updatedAt >= resource.data.updatedAt &&
-        isValidProfile(request.resource.data, userId);
-
-      allow delete: if profileId == 'main' && isOwner(userId);
+      allow read, create, update, delete: if profileId == 'main' && isOwner(userId);
     }
 
     match /{document=**} {

@@ -57,7 +57,7 @@ class _CapturePreviewSheetState extends State<CapturePreviewSheet> {
         child: SingleChildScrollView(
           padding: EdgeInsets.fromLTRB(
             24,
-            12,
+            18,
             24,
             20 + MediaQuery.viewInsetsOf(context).bottom,
           ),
@@ -77,6 +77,30 @@ class _CapturePreviewSheetState extends State<CapturePreviewSheet> {
                     return const SizedBox(
                       height: 220,
                       child: Center(child: CircularProgressIndicator()),
+                    );
+                  }
+                  if (resultSnapshot.hasError) {
+                    return SizedBox(
+                      height: 220,
+                      child: Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.error_outline_rounded, size: 40, color: Color(0xFF657069)),
+                            const SizedBox(height: 12),
+                            Text(context.l10n.lookupFailed, style: const TextStyle(color: Color(0xFF657069))),
+                            const SizedBox(height: 12),
+                            FilledButton.tonal(
+                              onPressed: () {
+                                setState(() {
+                                  _result = widget.controller.lookup(widget.capture.text, pair: _pair);
+                                });
+                              },
+                              child: Text(context.l10n.retry),
+                            ),
+                          ],
+                        ),
+                      ),
                     );
                   }
                   return _PreviewContent(

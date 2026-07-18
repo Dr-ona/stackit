@@ -163,72 +163,86 @@ class _ProfilePageState extends State<ProfilePage> {
           const SizedBox(height: 28),
           _sectionTitle(context, l10n.identity),
           const SizedBox(height: 10),
-          TextField(
-            controller: _displayName,
-            maxLength: 80,
-            textCapitalization: TextCapitalization.words,
-            decoration: InputDecoration(
-              labelText: l10n.displayName,
-              prefixIcon: const Icon(Icons.badge_outlined),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+              child: TextField(
+                controller: _displayName,
+                maxLength: 80,
+                textCapitalization: TextCapitalization.words,
+                decoration: InputDecoration(
+                  labelText: l10n.displayName,
+                  prefixIcon: const Icon(Icons.badge_outlined),
+                ),
+              ),
             ),
           ),
           const SizedBox(height: 14),
           _sectionTitle(context, l10n.languages),
           const SizedBox(height: 10),
-          DropdownButtonFormField<String>(
-            initialValue: _nativeLanguageCode,
-            isExpanded: true,
-            decoration: InputDecoration(labelText: l10n.nativeLanguage),
-            items: [
-              DropdownMenuItem(value: _none, child: Text(l10n.notSet)),
-              for (final language in VocabularyLanguage.values)
-                DropdownMenuItem(
-                  value: language.code,
-                  child: Text(language.nativeLabel),
-                ),
-            ],
-            onChanged: _busy
-                ? null
-                : (value) =>
-                      setState(() => _nativeLanguageCode = value ?? _none),
-          ),
-          const SizedBox(height: 12),
-          DropdownButtonFormField<String>(
-            initialValue: _interfaceLanguageCode,
-            isExpanded: true,
-            decoration: InputDecoration(labelText: l10n.interfaceLanguage),
-            items: [
-              DropdownMenuItem(value: _system, child: Text(l10n.systemDefault)),
-              for (final language in VocabularyLanguage.values)
-                DropdownMenuItem(
-                  value: language.code,
-                  child: Text(language.nativeLabel),
-                ),
-            ],
-            onChanged: _busy
-                ? null
-                : (value) =>
-                      setState(() => _interfaceLanguageCode = value ?? _system),
-          ),
-          const SizedBox(height: 12),
-          DropdownButtonFormField<String>(
-            initialValue: _preferredTargetLanguageCode,
-            isExpanded: true,
-            decoration: InputDecoration(labelText: l10n.translationPreference),
-            items: [
-              for (final language in LanguagePair.availableTargets)
-                DropdownMenuItem(
-                  value: language.code,
-                  child: Text(language.nativeLabel),
-                ),
-            ],
-            onChanged: _busy
-                ? null
-                : (value) {
-                    if (value != null) {
-                      setState(() => _preferredTargetLanguageCode = value);
-                    }
-                  },
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+              child: Column(
+                children: [
+                  DropdownButtonFormField<String>(
+                    initialValue: _nativeLanguageCode,
+                    isExpanded: true,
+                    decoration: InputDecoration(labelText: l10n.nativeLanguage),
+                    items: [
+                      DropdownMenuItem(value: _none, child: Text(l10n.notSet)),
+                      for (final language in VocabularyLanguage.values)
+                        DropdownMenuItem(
+                          value: language.code,
+                          child: Text(language.nativeLabel),
+                        ),
+                    ],
+                    onChanged: _busy
+                        ? null
+                        : (value) =>
+                              setState(() => _nativeLanguageCode = value ?? _none),
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    initialValue: _interfaceLanguageCode,
+                    isExpanded: true,
+                    decoration: InputDecoration(labelText: l10n.interfaceLanguage),
+                    items: [
+                      DropdownMenuItem(value: _system, child: Text(l10n.systemDefault)),
+                      for (final language in VocabularyLanguage.values)
+                        DropdownMenuItem(
+                          value: language.code,
+                          child: Text(language.nativeLabel),
+                        ),
+                    ],
+                    onChanged: _busy
+                        ? null
+                        : (value) =>
+                              setState(() => _interfaceLanguageCode = value ?? _system),
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    initialValue: _preferredTargetLanguageCode,
+                    isExpanded: true,
+                    decoration: InputDecoration(labelText: l10n.translationPreference),
+                    items: [
+                      for (final language in LanguagePair.availableTargets)
+                        DropdownMenuItem(
+                          value: language.code,
+                          child: Text(language.nativeLabel),
+                        ),
+                    ],
+                    onChanged: _busy
+                        ? null
+                        : (value) {
+                            if (value != null) {
+                              setState(() => _preferredTargetLanguageCode = value);
+                            }
+                          },
+                  ),
+                ],
+              ),
+            ),
           ),
           const SizedBox(height: 18),
           Text(
@@ -269,75 +283,89 @@ class _ProfilePageState extends State<ProfilePage> {
             ),
           ),
           const SizedBox(height: 12),
-          DropdownButtonFormField<ReviewIntensity>(
-            initialValue: _reviewIntensity,
-            isExpanded: true,
-            decoration: InputDecoration(labelText: l10n.reviewIntensity),
-            items: [
-              for (final intensity in ReviewIntensity.values)
-                DropdownMenuItem(
-                  value: intensity,
-                  child: Text(l10n.intensityLabel(intensity.storageValue)),
-                ),
-            ],
-            onChanged: _busy
-                ? null
-                : (value) {
-                    if (value != null) {
-                      setState(() => _reviewIntensity = value);
-                    }
-                  },
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _interests,
-            maxLength: 720,
-            decoration: InputDecoration(
-              labelText: l10n.interests,
-              hintText: l10n.interestsHint,
-            ),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _purposes,
-            maxLength: 640,
-            decoration: InputDecoration(
-              labelText: l10n.learningPurposes,
-              hintText: l10n.purposesHint,
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+              child: Column(
+                children: [
+                  DropdownButtonFormField<ReviewIntensity>(
+                    initialValue: _reviewIntensity,
+                    isExpanded: true,
+                    decoration: InputDecoration(labelText: l10n.reviewIntensity),
+                    items: [
+                      for (final intensity in ReviewIntensity.values)
+                        DropdownMenuItem(
+                          value: intensity,
+                          child: Text(l10n.intensityLabel(intensity.storageValue)),
+                        ),
+                    ],
+                    onChanged: _busy
+                        ? null
+                        : (value) {
+                            if (value != null) {
+                              setState(() => _reviewIntensity = value);
+                            }
+                          },
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _interests,
+                    maxLength: 720,
+                    decoration: InputDecoration(
+                      labelText: l10n.interests,
+                      hintText: l10n.interestsHint,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _purposes,
+                    maxLength: 640,
+                    decoration: InputDecoration(
+                      labelText: l10n.learningPurposes,
+                      hintText: l10n.purposesHint,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
           const SizedBox(height: 24),
           _sectionTitle(context, l10n.privacyAndAssistance),
           const SizedBox(height: 6),
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            secondary: const Icon(Icons.auto_awesome_outlined),
-            title: Text(l10n.aiAssistance),
-            subtitle: Text(l10n.aiAssistanceDescription),
-            value: _aiEnabled,
-            onChanged: _busy
-                ? null
-                : (value) => setState(() => _aiEnabled = value),
-          ),
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            secondary: const Icon(Icons.notifications_active_outlined),
-            title: Text(l10n.dailyReminder),
-            subtitle: Text(l10n.reminderTime),
-            value: _notificationsEnabled,
-            onChanged: _busy
-                ? null
-                : (value) => setState(() => _notificationsEnabled = value),
-          ),
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            secondary: const Icon(Icons.analytics_outlined),
-            title: Text(l10n.productAnalytics),
-            subtitle: Text(l10n.productAnalyticsDescription),
-            value: _analyticsConsent,
-            onChanged: _busy
-                ? null
-                : (value) => setState(() => _analyticsConsent = value),
+          Card(
+            child: Column(
+              children: [
+                SwitchListTile(
+                  secondary: const Icon(Icons.auto_awesome_outlined),
+                  title: Text(l10n.aiAssistance),
+                  subtitle: Text(l10n.aiAssistanceDescription),
+                  value: _aiEnabled,
+                  onChanged: _busy
+                      ? null
+                      : (value) => setState(() => _aiEnabled = value),
+                ),
+                const Divider(height: 1),
+                SwitchListTile(
+                  secondary: const Icon(Icons.notifications_active_outlined),
+                  title: Text(l10n.dailyReminder),
+                  subtitle: Text(l10n.reminderTime),
+                  value: _notificationsEnabled,
+                  onChanged: _busy
+                      ? null
+                      : (value) => setState(() => _notificationsEnabled = value),
+                ),
+                const Divider(height: 1),
+                SwitchListTile(
+                  secondary: const Icon(Icons.analytics_outlined),
+                  title: Text(l10n.productAnalytics),
+                  subtitle: Text(l10n.productAnalyticsDescription),
+                  value: _analyticsConsent,
+                  onChanged: _busy
+                      ? null
+                      : (value) => setState(() => _analyticsConsent = value),
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 20),
           FilledButton.icon(
