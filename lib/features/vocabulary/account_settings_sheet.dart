@@ -10,8 +10,8 @@ import '../profile/profile_page.dart';
 import 'language_pair_sheet.dart';
 import 'vocabulary_controller.dart';
 
-const _privacyUrl = 'https://dr-ona.github.io/stackit/docs/privacy';
-const _termsUrl = 'https://dr-ona.github.io/stackit/docs/terms';
+const _privacyUrl = 'https://github.com/Dr-ona/stackit/blob/codex/v0.1-release/docs/privacy.md';
+const _termsUrl = 'https://github.com/Dr-ona/stackit/blob/codex/v0.1-release/docs/terms.md';
 
 Future<void> showAccountSettings(
   BuildContext context, {
