@@ -34,7 +34,10 @@ class FirebaseAnalyticsService implements AnalyticsService {
   @override
   void logEvent(String name, {Map<String, Object?>? parameters}) {
     if (!_consent) return;
-    _analytics.logEvent(name: name, parameters: parameters);
+    _analytics.logEvent(
+      name: name,
+      parameters: parameters?.map((k, v) => MapEntry(k, v ?? '')),
+    );
   }
 
   @override
