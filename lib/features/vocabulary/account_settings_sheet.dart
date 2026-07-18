@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../data/auth_service.dart';
 import '../../data/vocabulary_export_service.dart';
@@ -8,6 +9,9 @@ import '../../models/language_pair.dart';
 import '../profile/profile_page.dart';
 import 'language_pair_sheet.dart';
 import 'vocabulary_controller.dart';
+
+const _privacyUrl = 'https://dr-ona.github.io/stackit/docs/privacy';
+const _termsUrl = 'https://dr-ona.github.io/stackit/docs/terms';
 
 Future<void> showAccountSettings(
   BuildContext context, {
@@ -146,7 +150,7 @@ class _AccountSettingsSheetState extends State<_AccountSettingsSheet> {
     if (mounted) {
       setState(() => _busy = false);
       if (enabled && !changed) {
-        _message('Notification permission was not granted.');
+        _message(context.l10n.notificationPermissionNotGranted);
       }
     }
   }
@@ -202,20 +206,44 @@ class _AccountSettingsSheetState extends State<_AccountSettingsSheet> {
     showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Stackit privacy'),
-        content: const SingleChildScrollView(
-          child: Text(
-            'Stackit stores vocabulary on your device and, when signed in, in '
-            'your private Firebase account. Gemini receives a selected term and '
-            'only the context you choose to submit. We do not sell personal data. '
-            'You can export your vocabulary or delete your account and cloud data '
-            'from this screen. Contact: khalidona.bk@gmail.com',
+        title: Text(context.l10n.stackitPrivacy),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(context.l10n.privacyDescription),
+              const SizedBox(height: 16),
+              GestureDetector(
+                onTap: () => launchUrl(Uri.parse(_privacyUrl)),
+                child: Text(
+                  context.l10n.privacyPolicy,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.primary,
+                    decoration: TextDecoration.underline,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              GestureDetector(
+                onTap: () => launchUrl(Uri.parse(_termsUrl)),
+                child: Text(
+                  context.l10n.termsOfService,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.primary,
+                    decoration: TextDecoration.underline,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
+            child: Text(context.l10n.close),
           ),
         ],
       ),
@@ -229,22 +257,19 @@ class _AccountSettingsSheetState extends State<_AccountSettingsSheet> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Delete your Stackit account?'),
+        title: Text(context.l10n.deleteAccountTitle),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'This permanently deletes your cloud vocabulary and Firebase account. '
-              'Export first if you want a copy.',
-            ),
+            Text(context.l10n.deleteAccountDescription),
             if (needsPassword) ...[
               const SizedBox(height: 16),
               TextField(
                 controller: password,
                 obscureText: true,
-                decoration: const InputDecoration(
-                  labelText: 'Current password',
+                decoration: InputDecoration(
+                  labelText: context.l10n.currentPassword,
                 ),
               ),
             ],
@@ -253,14 +278,14 @@ class _AccountSettingsSheetState extends State<_AccountSettingsSheet> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Cancel'),
+            child: Text(context.l10n.cancel),
           ),
           FilledButton(
             style: FilledButton.styleFrom(
               backgroundColor: Theme.of(context).colorScheme.error,
             ),
             onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Delete permanently'),
+            child: Text(context.l10n.deletePermanently),
           ),
         ],
       ),
@@ -273,17 +298,23 @@ class _AccountSettingsSheetState extends State<_AccountSettingsSheet> {
       await widget.authService.reauthenticate(password: currentPassword);
       final userId = widget.authService.currentUser?.uid;
       if (userId == null) {
-        throw const AuthFlowException('You are not signed in.');
+        throw const AuthFlowException('signed_out');
       }
       await widget.controller.deleteAccountData(userId);
       await widget.authService.deleteCurrentUser();
       if (mounted) Navigator.pop(context);
     } on FirebaseAuthException catch (error) {
-      if (mounted) _message(error.message ?? 'Account deletion failed.');
+      if (mounted) _message(error.message ?? context.l10n.accountDeletionFailed);
     } on AuthFlowException catch (error) {
-      if (mounted) _message(error.message);
+      if (mounted) {
+        _message(
+          error.message == 'signed_out'
+              ? context.l10n.signInRequired
+              : context.l10n.accountDeletionFailed,
+        );
+      }
     } catch (_) {
-      if (mounted) _message('Account deletion failed. Please try again.');
+      if (mounted) _message(context.l10n.accountDeletionFailed);
     } finally {
       if (mounted) setState(() => _busy = false);
     }

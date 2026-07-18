@@ -22,6 +22,14 @@
           }
         },
         {
+          "client_id": "792898120987-p99rl1evu9heljrn97b5ovjhmsh2h5q0.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "app.stackit.stackit",
+            "certificate_hash": "89356cefbf7ee36c33b99a59a25b2d0f989449e1"
+          }
+        },
+        {
           "client_id": "792898120987-q3f60egbf39gef2dcg99anqoq1acfp9d.apps.googleusercontent.com",
           "client_type": 3
         }

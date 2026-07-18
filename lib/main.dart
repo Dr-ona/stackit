@@ -2,6 +2,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 
 import 'app/stackit_app.dart';
+import 'data/analytics_service.dart';
 import 'data/app_check_service.dart';
 import 'data/auth_service.dart';
 import 'data/contextual_explanation_service.dart';
@@ -27,6 +28,7 @@ Future<void> main() async {
   await authService.initialize();
   final notificationService = ReviewNotificationService();
   await notificationService.initialize();
+  final analyticsService = FirebaseAnalyticsService();
 
   final controller = VocabularyController(
     OfflineDictionary(),
@@ -38,6 +40,7 @@ Future<void> main() async {
     FirebaseMeaningDiscoveryService(),
     FirebaseProfileAvatarStore(),
     crashReporter,
+    analyticsService,
   );
 
   await controller.initialize();

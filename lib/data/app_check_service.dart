@@ -12,20 +12,14 @@ class AppCheckService {
       return;
     }
 
-    const configuredDebugToken = String.fromEnvironment(
-      'APP_CHECK_DEBUG_TOKEN',
-    );
+    if (kDebugMode) {
+      return;
+    }
+
     await FirebaseAppCheck.instance.activate(
-      providerAndroid: kDebugMode
-          ? AndroidDebugProvider(
-              debugToken: configuredDebugToken.isEmpty
-                  ? null
-                  : configuredDebugToken,
-            )
-          : const AndroidPlayIntegrityProvider(),
-      providerApple: kDebugMode
-          ? const AppleDebugProvider()
-          : const AppleAppAttestWithDeviceCheckFallbackProvider(),
+      providerAndroid: const AndroidPlayIntegrityProvider(),
+      providerApple:
+          const AppleAppAttestWithDeviceCheckFallbackProvider(),
     );
   }
 }

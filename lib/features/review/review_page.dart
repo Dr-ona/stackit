@@ -120,39 +120,42 @@ class _ReviewHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'DAILY REVIEW',
-                style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                  color: const Color(0xFF356859),
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 2,
+    return Semantics(
+      header: true,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  context.l10n.dailyReviewHeader,
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: const Color(0xFF356859),
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 2,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 5),
-              Text(
-                '$position of $total',
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.w700,
+                const SizedBox(height: 5),
+                Text(
+                  context.l10n.reviewProgress(position, total),
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
         Text(
-          '${total - position + 1} left',
+          context.l10n.reviewRemaining(total - position + 1),
           style: const TextStyle(
             color: Color(0xFF657069),
             fontWeight: FontWeight.w600,
           ),
         ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -292,13 +295,17 @@ class _RatingButtons extends StatelessWidget {
 
   Widget _button(String label, Color color, ReviewRating rating) {
     return Expanded(
-      child: FilledButton(
-        style: FilledButton.styleFrom(
-          backgroundColor: color,
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 14),
+      child: Semantics(
+        button: true,
+        label: label,
+        child: FilledButton(
+          style: FilledButton.styleFrom(
+            backgroundColor: color,
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 14),
+          ),
+          onPressed: () => onRate(rating),
+          child: FittedBox(child: Text(label)),
         ),
-        onPressed: () => onRate(rating),
-        child: FittedBox(child: Text(label)),
       ),
     );
   }

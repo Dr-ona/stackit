@@ -550,6 +550,62 @@ class AppLocalizations {
     'حذف الحساب والبيانات السحابية',
     'Supprimer le compte et les données cloud',
   );
+  String get deleteAccountTitle => _pick(
+    'Delete your Stackit account?',
+    'حذف حساب Stackit؟',
+    'Supprimer votre compte Stackit ?',
+  );
+  String get deleteAccountDescription => _pick(
+    'This permanently deletes your cloud vocabulary and Firebase account. Export first if you want a copy.',
+    'يحذف ذلك بشكل دائم كلماتك السحابية وحساب Firebase. صدّر نسخة أولاً إذا أردت الاحتفاظ بنسخة.',
+    'Cela supprime définitivement votre vocabulaire cloud et votre compte Firebase. Exportez d\'abord si vous souhaitez une copie.',
+  );
+  String get currentPassword =>
+      _pick('Current password', 'كلمة المرور الحالية', 'Mot de passe actuel');
+  String get deletePermanently => _pick(
+    'Delete permanently',
+    'حذف نهائي',
+    'Supprimer définitivement',
+  );
+  String get dailyReviewHeader => _pick(
+    'DAILY REVIEW',
+    'المراجعة اليومية',
+    'RÉVISION QUOTIDIENNE',
+  );
+  String reviewProgress(int position, int total) => _pick(
+    '$position of $total',
+    '$position من $total',
+    '$position sur $total',
+  );
+  String reviewRemaining(int count) => _pick(
+    '$count left',
+    '$count متبقية',
+    '$count restant${count == 1 ? '' : 's'}',
+  );
+  String get notificationPermissionNotGranted => _pick(
+    'Notification permission was not granted.',
+    'لم تُمنح صلاحية الإشعارات.',
+    'La permission de notification n\'a pas été accordée.',
+  );
+  String get stackitPrivacy =>
+      _pick('Stackit privacy', 'خصوصية Stackit', 'Confidentialité Stackit');
+  String get privacyDescription => _pick(
+    'Stackit stores vocabulary on your device and, when signed in, in your private Firebase account. Gemini receives a selected term and only the context you choose to submit. We do not sell personal data. You can export your vocabulary or delete your account and cloud data from this screen. Contact: khalidona.bk@gmail.com',
+    'يخزن Stackit المفردات على جهازك وعند تسجيل الدخول في حسابك الخاص بـ Firebase. يتلقى Gemini المصطلح المحدد والسياق فقط الذي تختار إرساله. لا نبيع البيانات الشخصية. يمكنك تصدير كلماتك أو حذف حسابك والبيانات السحابية من هذا الشاشة. التواصل: khalidona.bk@gmail.com',
+    'Stackit stocke le vocabulaire sur votre appareil et, lorsque vous êtes connecté, dans votre compte Firebase privé. Gemini reçoit un terme sélectionné et uniquement le contexte que vous choisissez de soumettre. Nous ne vendons pas de données personnelles. Vous pouvez exporter votre vocabulaire ou supprimer votre compte et vos données cloud depuis cet écran. Contact : khalidona.bk@gmail.com',
+  );
+  String get accountDeletionFailed => _pick(
+    'Account deletion failed. Please try again.',
+    'فشل حذف الحساب. حاول مرة أخرى.',
+    'La suppression du compte a échoué. Réessayez.',
+  );
+  String get signInRequired =>
+      _pick('You are not signed in.', 'أنت غير مسجل الدخول.', 'Vous n\'êtes pas connecté.');
+  String get termsOfService => _pick(
+    'Terms of Service',
+    'شروط الخدمة',
+    'Conditions d\'utilisation',
+  );
 }
 
 class _AppLocalizationsDelegate

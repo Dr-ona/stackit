@@ -489,22 +489,24 @@ class _WordCard extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFC6DDD2),
-                              borderRadius: BorderRadius.circular(99),
-                            ),
-                            child: const Text(
-                              'NEW',
-                              style: TextStyle(
-                                color: Color(0xFF275E50),
-                                fontSize: 10,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: 0.8,
+                          ExcludeSemantics(
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFC6DDD2),
+                                borderRadius: BorderRadius.circular(99),
+                              ),
+                              child: const Text(
+                                'NEW',
+                                style: TextStyle(
+                                  color: Color(0xFF275E50),
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 0.8,
+                                ),
                               ),
                             ),
                           ),
@@ -522,11 +524,15 @@ class _WordCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                IconButton(
-                  tooltip: 'Pronounce',
-                  onPressed: () =>
-                      controller.speak(entry.sourceText, entry.sourceLanguage),
-                  icon: const Icon(Icons.volume_up_outlined),
+                Semantics(
+                  button: true,
+                  label: context.l10n.pronounce,
+                  child: IconButton(
+                    tooltip: context.l10n.pronounce,
+                    onPressed: () =>
+                        controller.speak(entry.sourceText, entry.sourceLanguage),
+                    icon: const Icon(Icons.volume_up_outlined),
+                  ),
                 ),
                 const Icon(Icons.chevron_right_rounded),
               ],

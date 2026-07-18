@@ -6,6 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../data/offline_dictionary.dart';
+import '../../data/analytics_service.dart';
 import '../../data/platform_bridge.dart';
 import '../../data/profile_avatar_store.dart';
 import '../../data/crash_reporter.dart';
@@ -33,6 +34,7 @@ class VocabularyController extends ChangeNotifier {
     this._meaningDiscoveryService,
     this._profileAvatarStore,
     this._crashReporter,
+    this._analyticsService,
   ]);
 
   final OfflineDictionary _dictionary;
@@ -44,6 +46,7 @@ class VocabularyController extends ChangeNotifier {
   final MeaningDiscoveryService? _meaningDiscoveryService;
   final ProfileAvatarStore? _profileAvatarStore;
   final CrashReporter? _crashReporter;
+  final AnalyticsService? _analyticsService;
   final ReviewScheduler _reviewScheduler = const ReviewScheduler();
 
   List<VocabularyEntry> _entries = const [];
@@ -330,6 +333,9 @@ class VocabularyController extends ChangeNotifier {
     notifyListeners();
     await _platformBridge.saveEntries(_entries);
     _queueCloudUpsert(entry);
+    if (_entries.length == 1) {
+      _analyticsService?.logFirstSave();
+    }
   }
 
   Future<void> delete(String id) async {
@@ -357,6 +363,7 @@ class VocabularyController extends ChangeNotifier {
     _explainingEntryId = entry.id;
     _explainingSenseId = selectedSense.id;
     notifyListeners();
+    _analyticsService?.logAiExplanationRequested();
     try {
       final explanation = await service.explain(
         entry,
@@ -497,6 +504,9 @@ class VocabularyController extends ChangeNotifier {
     notifyListeners();
     await _platformBridge.saveEntries(_entries);
     _queueCloudUpsert(reviewed);
+    if (reviewedCount == 1) {
+      _analyticsService?.logFirstReview();
+    }
   }
 
   Future<void> syncForUser(String userId, {String? displayName}) async {
@@ -565,6 +575,7 @@ class VocabularyController extends ChangeNotifier {
     }
     _discoveringMeaningsEntryId = entry.id;
     notifyListeners();
+    _analyticsService?.logMeaningExpanded();
     try {
       final result = await service.discoverAllMeanings(
         entry.sourceText,
@@ -675,6 +686,7 @@ class VocabularyController extends ChangeNotifier {
     _interfaceLanguage = VocabularyLanguage.tryFromCode(
       profile.interfaceLanguageCode,
     );
+    _analyticsService?.setConsent(profile.analyticsConsent);
   }
 
   Future<void> _persistProfileChange(
