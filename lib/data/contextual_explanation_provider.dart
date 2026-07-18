@@ -4,6 +4,7 @@ import '../models/vocabulary_entry.dart';
 abstract interface class ContextualExplanationService {
   Future<ContextualExplanation> explain(
     VocabularyEntry entry, {
+    String? senseId,
     String? context,
   });
 }

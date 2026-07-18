@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 
+import '../../models/capture_payload.dart';
 import '../../models/vocabulary_entry.dart';
-import 'translation_meaning_list.dart';
+import '../../l10n/app_localizations.dart';
 import 'vocabulary_controller.dart';
 import 'vocabulary_entry_detail_sheet.dart';
+import 'vocabulary_sense_list.dart';
 
 class LibraryEntryTile extends StatelessWidget {
   const LibraryEntryTile({
@@ -17,9 +19,10 @@ class LibraryEntryTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final remaining = entry.translations.skip(1).toList(growable: false);
+    final additionalSenseCount = entry.senses.length - 1;
     return ExpansionTile(
       key: PageStorageKey<String>('library-${entry.id}'),
+      initiallyExpanded: entry.source == CapturePayload.manualSource,
       tilePadding: const EdgeInsets.symmetric(vertical: 5),
       childrenPadding: const EdgeInsets.only(bottom: 12),
       expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
@@ -35,17 +38,37 @@ class LibraryEntryTile extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            TranslationMeaningList(
-              translations: [entry.translations.first],
-              language: entry.targetLanguage,
-              compact: true,
-              totalCount: entry.translations.length,
+            Directionality(
+              textDirection: entry.targetLanguage.isRtl
+                  ? TextDirection.rtl
+                  : TextDirection.ltr,
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 9,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE3ECE6),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  entry.primarySense.translations.join(' · '),
+                  textAlign: entry.targetLanguage.isRtl
+                      ? TextAlign.right
+                      : TextAlign.left,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: const Color(0xFF356859),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
             ),
             const SizedBox(height: 6),
             Text(
-              remaining.isEmpty
-                  ? 'Tap for word details'
-                  : '+${remaining.length} more ${remaining.length == 1 ? 'meaning' : 'meanings'} — tap to expand',
+              additionalSenseCount == 0
+                  ? context.l10n.tapForDetails
+                  : context.l10n.moreMeanings(additionalSenseCount),
               style: Theme.of(context).textTheme.labelMedium?.copyWith(
                 color: const Color(0xFF657069),
                 fontWeight: FontWeight.w700,
@@ -55,29 +78,16 @@ class LibraryEntryTile extends StatelessWidget {
         ),
       ),
       children: [
-        if (remaining.isNotEmpty) ...[
-          const Padding(
-            padding: EdgeInsets.fromLTRB(16, 2, 16, 8),
-            child: Text(
-              'More verified equivalents',
-              style: TextStyle(
-                color: Color(0xFF657069),
-                fontWeight: FontWeight.w800,
-              ),
-            ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+          child: VocabularySenseList(
+            senses: entry.senses,
+            sourceText: entry.sourceText,
+            sourceLanguage: entry.sourceLanguage,
+            targetLanguage: entry.targetLanguage,
+            compact: true,
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: TranslationMeaningList(
-              translations: remaining,
-              language: entry.targetLanguage,
-              compact: true,
-              startIndex: 1,
-              totalCount: entry.translations.length,
-            ),
-          ),
-          const SizedBox(height: 8),
-        ],
+        ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 8),
           child: Row(
@@ -86,7 +96,7 @@ class LibraryEntryTile extends StatelessWidget {
                 onPressed: () =>
                     controller.speak(entry.sourceText, entry.sourceLanguage),
                 icon: const Icon(Icons.volume_up_outlined),
-                label: const Text('Pronounce'),
+                label: Text(context.l10n.pronounce),
               ),
               const Spacer(),
               TextButton.icon(
@@ -96,7 +106,7 @@ class LibraryEntryTile extends StatelessWidget {
                   controller: controller,
                 ),
                 icon: const Icon(Icons.open_in_new_rounded),
-                label: const Text('Full details'),
+                label: Text(context.l10n.fullDetails),
               ),
             ],
           ),

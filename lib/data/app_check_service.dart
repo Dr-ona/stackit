@@ -11,9 +11,17 @@ class AppCheckService {
             defaultTargetPlatform != TargetPlatform.macOS)) {
       return;
     }
+
+    const configuredDebugToken = String.fromEnvironment(
+      'APP_CHECK_DEBUG_TOKEN',
+    );
     await FirebaseAppCheck.instance.activate(
       providerAndroid: kDebugMode
-          ? const AndroidDebugProvider()
+          ? AndroidDebugProvider(
+              debugToken: configuredDebugToken.isEmpty
+                  ? null
+                  : configuredDebugToken,
+            )
           : const AndroidPlayIntegrityProvider(),
       providerApple: kDebugMode
           ? const AppleDebugProvider()

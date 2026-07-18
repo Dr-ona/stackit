@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../../models/vocabulary_entry.dart';
-import '../vocabulary/highlighted_example_text.dart';
-import '../vocabulary/translation_meaning_list.dart';
+import '../../l10n/app_localizations.dart';
 import '../vocabulary/vocabulary_controller.dart';
+import '../vocabulary/vocabulary_sense_list.dart';
 import 'review_scheduler.dart';
 
 class ReviewPage extends StatefulWidget {
@@ -32,20 +32,19 @@ class _ReviewPageState extends State<ReviewPage> {
   @override
   Widget build(BuildContext context) {
     if (_session.isEmpty) {
-      return const _ReviewMessage(
+      return _ReviewMessage(
         icon: Icons.wb_sunny_outlined,
-        eyebrow: 'ALL CLEAR',
-        title: 'Nothing due right now',
-        body: 'Collect a few words, then return for a short review session.',
+        eyebrow: context.l10n.allClear,
+        title: context.l10n.nothingDue,
+        body: context.l10n.collectWords,
       );
     }
     if (_current == null) {
       return _ReviewMessage(
         icon: Icons.celebration_outlined,
-        eyebrow: 'SESSION COMPLETE',
-        title: '${_session.length} words revisited',
-        body:
-            'That is enough for today. We will bring them back when your memory needs them.',
+        eyebrow: context.l10n.sessionComplete,
+        title: context.l10n.wordsRevisited(_session.length),
+        body: context.l10n.enoughToday,
       );
     }
 
@@ -92,7 +91,7 @@ class _ReviewPageState extends State<ReviewPage> {
                       child: FilledButton.icon(
                         onPressed: () => setState(() => _revealed = true),
                         icon: const Icon(Icons.visibility_outlined),
-                        label: const Text('Reveal meaning'),
+                        label: Text(context.l10n.revealMeaning),
                       ),
                     ),
             ),
@@ -170,7 +169,9 @@ class _Prompt extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          example == null ? 'RECALL THE MEANING' : 'COMPLETE THE THOUGHT',
+          example == null
+              ? context.l10n.recallMeaning
+              : context.l10n.completeThought,
           style: Theme.of(context).textTheme.labelMedium?.copyWith(
             color: const Color(0xFF728079),
             fontWeight: FontWeight.w800,
@@ -193,18 +194,18 @@ class _Prompt extends StatelessWidget {
         const SizedBox(height: 18),
         Text(
           example == null
-              ? 'Can you explain it in ${entry.targetLanguage.label}?'
-              : 'Which saved word belongs in the blank?',
+              ? context.l10n.explainIn(entry.targetLanguage.nativeLabel)
+              : context.l10n.wordInBlank,
           style: Theme.of(
             context,
           ).textTheme.bodyLarge?.copyWith(color: const Color(0xFF657069)),
         ),
         const Spacer(),
-        const Row(
+        Row(
           children: [
-            Icon(Icons.psychology_alt_outlined, size: 20),
-            SizedBox(width: 8),
-            Text('Try to recall before revealing'),
+            const Icon(Icons.psychology_alt_outlined, size: 20),
+            const SizedBox(width: 8),
+            Text(context.l10n.recallFirst),
           ],
         ),
       ],
@@ -245,34 +246,13 @@ class _Answer extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 20),
-          TranslationMeaningList(
-            translations: entry.translations,
-            language: entry.targetLanguage,
+          VocabularySenseList(
+            senses: entry.senses,
+            sourceText: entry.sourceText,
+            sourceLanguage: entry.sourceLanguage,
+            targetLanguage: entry.targetLanguage,
+            compact: true,
           ),
-          const SizedBox(height: 18),
-          Text(
-            entry.definition,
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(height: 1.5),
-          ),
-          const SizedBox(height: 18),
-          if (entry.example != null)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF0EEE7),
-                borderRadius: BorderRadius.circular(18),
-              ),
-              child: HighlightedExampleText(
-                example: entry.example!,
-                term: entry.sourceText,
-                language: entry.sourceLanguage,
-                style: const TextStyle(
-                  fontStyle: FontStyle.italic,
-                  height: 1.4,
-                ),
-              ),
-            ),
         ],
       ),
     );
@@ -289,11 +269,23 @@ class _RatingButtons extends StatelessWidget {
     return Row(
       key: const ValueKey('ratings'),
       children: [
-        _button('Forgot', const Color(0xFFB94D48), ReviewRating.forgot),
+        _button(
+          context.l10n.forgot,
+          const Color(0xFFB94D48),
+          ReviewRating.forgot,
+        ),
         const SizedBox(width: 8),
-        _button('Almost', const Color(0xFF9A6B20), ReviewRating.almost),
+        _button(
+          context.l10n.almost,
+          const Color(0xFF9A6B20),
+          ReviewRating.almost,
+        ),
         const SizedBox(width: 8),
-        _button('Remembered', const Color(0xFF356859), ReviewRating.remembered),
+        _button(
+          context.l10n.remembered,
+          const Color(0xFF356859),
+          ReviewRating.remembered,
+        ),
       ],
     );
   }

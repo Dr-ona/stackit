@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
 import '../../data/auth_service.dart';
+import '../../l10n/app_localizations.dart';
 
 class SignInPage extends StatefulWidget {
   const SignInPage({super.key, required this.authService});
@@ -44,7 +45,9 @@ class _SignInPageState extends State<SignInPage> {
                   const _BrandMark(),
                   const SizedBox(height: 34),
                   Text(
-                    _createAccount ? 'Create your account' : 'Welcome back',
+                    _createAccount
+                        ? context.l10n.createYourAccount
+                        : context.l10n.welcomeBack,
                     style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                       fontWeight: FontWeight.w800,
                       letterSpacing: -0.8,
@@ -53,8 +56,8 @@ class _SignInPageState extends State<SignInPage> {
                   const SizedBox(height: 8),
                   Text(
                     _createAccount
-                        ? 'Keep your vocabulary available across devices.'
-                        : 'Sign in to open your vocabulary collection.',
+                        ? context.l10n.createAccountSubtitle
+                        : context.l10n.signInSubtitle,
                     style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                       color: const Color(0xFF657069),
                     ),
@@ -69,14 +72,14 @@ class _SignInPageState extends State<SignInPage> {
                           keyboardType: TextInputType.emailAddress,
                           textInputAction: TextInputAction.next,
                           autofillHints: const [AutofillHints.email],
-                          decoration: const InputDecoration(
-                            labelText: 'Email',
-                            prefixIcon: Icon(Icons.mail_outline_rounded),
+                          decoration: InputDecoration(
+                            labelText: context.l10n.email,
+                            prefixIcon: const Icon(Icons.mail_outline_rounded),
                           ),
                           validator: (value) {
                             final email = value?.trim() ?? '';
                             if (email.isEmpty || !email.contains('@')) {
-                              return 'Enter a valid email address.';
+                              return context.l10n.invalidEmail;
                             }
                             return null;
                           },
@@ -91,7 +94,7 @@ class _SignInPageState extends State<SignInPage> {
                               : const [AutofillHints.password],
                           onFieldSubmitted: (_) => _submitEmail(),
                           decoration: InputDecoration(
-                            labelText: 'Password',
+                            labelText: context.l10n.password,
                             prefixIcon: const Icon(Icons.lock_outline_rounded),
                             suffixIcon: IconButton(
                               onPressed: () => setState(
@@ -106,7 +109,7 @@ class _SignInPageState extends State<SignInPage> {
                           ),
                           validator: (value) {
                             if ((value?.length ?? 0) < 6) {
-                              return 'Use at least 6 characters.';
+                              return context.l10n.shortPassword;
                             }
                             return null;
                           },
@@ -132,23 +135,27 @@ class _SignInPageState extends State<SignInPage> {
                             dimension: 22,
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
-                        : Text(_createAccount ? 'Create account' : 'Sign in'),
+                        : Text(
+                            _createAccount
+                                ? context.l10n.createAccount
+                                : context.l10n.signIn,
+                          ),
                   ),
                   if (!_createAccount)
                     TextButton(
                       onPressed: _busy ? null : _resetPassword,
-                      child: const Text('Forgot password?'),
+                      child: Text(context.l10n.forgotPassword),
                     ),
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 10),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 10),
                     child: Row(
                       children: [
-                        Expanded(child: Divider()),
+                        const Expanded(child: Divider()),
                         Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 14),
-                          child: Text('or'),
+                          padding: const EdgeInsets.symmetric(horizontal: 14),
+                          child: Text(context.l10n.or),
                         ),
-                        Expanded(child: Divider()),
+                        const Expanded(child: Divider()),
                       ],
                     ),
                   ),
@@ -158,7 +165,7 @@ class _SignInPageState extends State<SignInPage> {
                       minimumSize: const Size.fromHeight(54),
                     ),
                     icon: const Icon(Icons.account_circle_outlined),
-                    label: const Text('Continue with Google'),
+                    label: Text(context.l10n.continueWithGoogle),
                   ),
                   const SizedBox(height: 18),
                   TextButton(
@@ -170,8 +177,8 @@ class _SignInPageState extends State<SignInPage> {
                           }),
                     child: Text(
                       _createAccount
-                          ? 'Already have an account? Sign in'
-                          : 'New to Stackit? Create an account',
+                          ? context.l10n.existingAccount
+                          : context.l10n.newAccount,
                     ),
                   ),
                 ],
@@ -212,9 +219,9 @@ class _SignInPageState extends State<SignInPage> {
     }
     await _run(() => widget.authService.sendPasswordReset(email));
     if (mounted && _error == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Password reset email sent.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(context.l10n.resetSent)));
     }
   }
 

@@ -3,6 +3,10 @@ import 'package:flutter/material.dart';
 
 import '../../data/auth_service.dart';
 import '../../data/vocabulary_export_service.dart';
+import '../../l10n/app_localizations.dart';
+import '../../models/language_pair.dart';
+import '../profile/profile_page.dart';
+import 'language_pair_sheet.dart';
 import 'vocabulary_controller.dart';
 
 Future<void> showAccountSettings(
@@ -45,46 +49,81 @@ class _AccountSettingsSheetState extends State<_AccountSettingsSheet> {
         padding: const EdgeInsets.fromLTRB(20, 4, 20, 28),
         children: [
           Text(
-            'Account & settings',
+            context.l10n.accountAndSettings,
             style: Theme.of(
               context,
             ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 6),
           Text(
-            widget.authService.currentUser?.email ??
-                'Signed-in Stackit account',
+            widget.controller.userProfile?.displayName ??
+                widget.authService.currentUser?.email ??
+                context.l10n.learningProfile,
             style: const TextStyle(color: Color(0xFF657069)),
           ),
           const SizedBox(height: 18),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.account_circle_outlined),
+            title: Text(context.l10n.learningProfile),
+            subtitle: Text(
+              widget.controller.userProfile?.onboardingCompleted == true
+                  ? widget.authService.currentUser?.email ??
+                        context.l10n.completeYourProfile
+                  : context.l10n.completeYourProfile,
+            ),
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: _busy ? null : _openProfile,
+          ),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.language_rounded),
+            title: Text(context.l10n.interfaceLanguage),
+            subtitle: Text(
+              widget.controller.interfaceLanguage?.nativeLabel ??
+                  context.l10n.systemDefault,
+            ),
+            onTap: _busy ? null : _chooseInterfaceLanguage,
+          ),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.translate_rounded),
+            title: Text(context.l10n.translationPreference),
+            subtitle: Text(
+              widget.controller.preferredTargetLanguage.nativeLabel,
+            ),
+            onTap: _busy
+                ? null
+                : () => showTargetLanguageSheet(context, widget.controller),
+          ),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
             secondary: const Icon(Icons.notifications_active_outlined),
-            title: const Text('Daily review reminder'),
-            subtitle: const Text('At 7:00 PM in your device time zone'),
+            title: Text(context.l10n.dailyReminder),
+            subtitle: Text(context.l10n.reminderTime),
             value: widget.controller.reviewRemindersEnabled,
             onChanged: _busy ? null : _setReminders,
           ),
           ListTile(
             contentPadding: EdgeInsets.zero,
             leading: const Icon(Icons.ios_share_rounded),
-            title: const Text('Export vocabulary'),
+            title: Text(context.l10n.exportVocabulary),
             subtitle: Text(
-              '${widget.controller.entries.length} entries as JSON',
+              context.l10n.jsonEntries(widget.controller.entries.length),
             ),
             onTap: _busy ? null : _export,
           ),
           ListTile(
             contentPadding: EdgeInsets.zero,
             leading: const Icon(Icons.privacy_tip_outlined),
-            title: const Text('Privacy policy'),
+            title: Text(context.l10n.privacyPolicy),
             onTap: _showPrivacy,
           ),
           const Divider(height: 32),
           ListTile(
             contentPadding: EdgeInsets.zero,
             leading: const Icon(Icons.logout_rounded),
-            title: const Text('Sign out'),
+            title: Text(context.l10n.signOut),
             onTap: _busy ? null : widget.authService.signOut,
           ),
           ListTile(
@@ -92,7 +131,7 @@ class _AccountSettingsSheetState extends State<_AccountSettingsSheet> {
             iconColor: Theme.of(context).colorScheme.error,
             textColor: Theme.of(context).colorScheme.error,
             leading: const Icon(Icons.delete_forever_outlined),
-            title: const Text('Delete account and cloud data'),
+            title: Text(context.l10n.deleteAccount),
             onTap: _busy ? null : _deleteAccount,
           ),
           if (_busy) const LinearProgressIndicator(),
@@ -110,6 +149,42 @@ class _AccountSettingsSheetState extends State<_AccountSettingsSheet> {
         _message('Notification permission was not granted.');
       }
     }
+  }
+
+  Future<void> _openProfile() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) => ProfilePage(
+          controller: widget.controller,
+          authService: widget.authService,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _chooseInterfaceLanguage() async {
+    const systemChoice = 'system';
+    final selected = await showDialog<Object?>(
+      context: context,
+      builder: (dialogContext) => SimpleDialog(
+        title: Text(context.l10n.interfaceLanguage),
+        children: [
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(dialogContext, systemChoice),
+            child: Text(context.l10n.systemDefault),
+          ),
+          for (final language in VocabularyLanguage.values)
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(dialogContext, language),
+              child: Text(language.nativeLabel),
+            ),
+        ],
+      ),
+    );
+    if (!mounted || selected == null) return;
+    await widget.controller.setInterfaceLanguage(
+      selected == systemChoice ? null : selected as VocabularyLanguage,
+    );
   }
 
   Future<void> _export() async {

@@ -59,6 +59,16 @@ class AuthService {
     return _firebaseAuth.sendPasswordResetEmail(email: email.trim());
   }
 
+  Future<void> updateDisplayName(String? displayName) async {
+    final user = currentUser;
+    if (user == null) throw const AuthFlowException('You are not signed in.');
+    final normalized = displayName?.trim();
+    await user.updateDisplayName(
+      normalized == null || normalized.isEmpty ? null : normalized,
+    );
+    await user.reload();
+  }
+
   Future<void> signOut() async {
     if (!kIsWeb) await GoogleSignIn.instance.signOut();
     await _firebaseAuth.signOut();

@@ -3,12 +3,14 @@ package app.stackit.stackit
 import android.content.Intent
 import android.os.Bundle
 import android.speech.tts.TextToSpeech
+import android.util.Log
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import java.util.Locale
 
 class MainActivity : FlutterActivity(), TextToSpeech.OnInitListener {
+    private val logTag = "StackitCapture"
     private val channelName = "app.stackit/capture"
     private val preferencesName = "stackit_vocabulary"
     private var channel: MethodChannel? = null
@@ -16,7 +18,8 @@ class MainActivity : FlutterActivity(), TextToSpeech.OnInitListener {
     private var textToSpeech: TextToSpeech? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        pendingSelection = captureFrom(intent)
+        pendingSelection = captureFrom(intent) ?: loadPendingCapture()
+        pendingSelection?.let(::storePendingCapture)
         super.onCreate(savedInstanceState)
         textToSpeech = TextToSpeech(this, this)
     }
@@ -27,8 +30,10 @@ class MainActivity : FlutterActivity(), TextToSpeech.OnInitListener {
             bridge.setMethodCallHandler { call, result ->
                 when (call.method) {
                     "takeInitialSelection" -> {
-                        result.success(pendingSelection)
+                        val capture = pendingSelection ?: loadPendingCapture()
                         pendingSelection = null
+                        clearStoredCapture()
+                        result.success(capture)
                     }
                     "loadEntries" -> {
                         val preferences = getSharedPreferences(preferencesName, MODE_PRIVATE)
@@ -62,6 +67,37 @@ class MainActivity : FlutterActivity(), TextToSpeech.OnInitListener {
                             result.success(null)
                         }
                     }
+                    "loadPreferredTargetLanguage" -> {
+                        val preferences = getSharedPreferences(preferencesName, MODE_PRIVATE)
+                        result.success(preferences.getString("preferred_target_language", null))
+                    }
+                    "savePreferredTargetLanguage" -> {
+                        val language = call.arguments as? String
+                        if (language.isNullOrBlank()) {
+                            result.error("invalid_target_language", "Expected a language code", null)
+                        } else {
+                            getSharedPreferences(preferencesName, MODE_PRIVATE)
+                                .edit()
+                                .putString("preferred_target_language", language)
+                                .apply()
+                            result.success(null)
+                        }
+                    }
+                    "loadInterfaceLanguage" -> {
+                        val preferences = getSharedPreferences(preferencesName, MODE_PRIVATE)
+                        result.success(preferences.getString("interface_language", null))
+                    }
+                    "saveInterfaceLanguage" -> {
+                        val language = call.arguments as? String
+                        val editor = getSharedPreferences(preferencesName, MODE_PRIVATE).edit()
+                        if (language.isNullOrBlank()) {
+                            editor.remove("interface_language")
+                        } else {
+                            editor.putString("interface_language", language)
+                        }
+                        editor.apply()
+                        result.success(null)
+                    }
                     "loadReviewReminders" -> {
                         val preferences = getSharedPreferences(preferencesName, MODE_PRIVATE)
                         result.success(preferences.getBoolean("review_reminders", false))
@@ -77,6 +113,29 @@ class MainActivity : FlutterActivity(), TextToSpeech.OnInitListener {
                                 .apply()
                             result.success(null)
                         }
+                    }
+                    "loadUserProfile" -> {
+                        val preferences = getSharedPreferences(preferencesName, MODE_PRIVATE)
+                        result.success(preferences.getString("user_profile", null))
+                    }
+                    "saveUserProfile" -> {
+                        val encoded = call.arguments as? String
+                        if (encoded.isNullOrBlank()) {
+                            result.error("invalid_user_profile", "Expected a JSON string", null)
+                        } else {
+                            getSharedPreferences(preferencesName, MODE_PRIVATE)
+                                .edit()
+                                .putString("user_profile", encoded)
+                                .apply()
+                            result.success(null)
+                        }
+                    }
+                    "clearUserProfile" -> {
+                        getSharedPreferences(preferencesName, MODE_PRIVATE)
+                            .edit()
+                            .remove("user_profile")
+                            .apply()
+                        result.success(null)
                     }
                     "speak" -> {
                         val arguments = call.arguments as? Map<*, *>
@@ -102,12 +161,9 @@ class MainActivity : FlutterActivity(), TextToSpeech.OnInitListener {
         super.onNewIntent(intent)
         setIntent(intent)
         val capture = captureFrom(intent) ?: return
-        val activeChannel = channel
-        if (activeChannel == null) {
-            pendingSelection = capture
-        } else {
-            activeChannel.invokeMethod("selectionReceived", capture)
-        }
+        pendingSelection = capture
+        storePendingCapture(capture)
+        deliverCapture(capture)
     }
 
     override fun onInit(status: Int) {
@@ -138,5 +194,63 @@ class MainActivity : FlutterActivity(), TextToSpeech.OnInitListener {
             "text" to selected,
             "source" to sourceIntent.getStringExtra(Intent.EXTRA_REFERRER_NAME),
         )
+    }
+
+    private fun deliverCapture(capture: Map<String, String?>) {
+        val activeChannel = channel ?: return
+        activeChannel.invokeMethod(
+            "selectionReceived",
+            capture,
+            object : MethodChannel.Result {
+                override fun success(result: Any?) {
+                    if (pendingSelection == capture) {
+                        pendingSelection = null
+                        clearStoredCapture()
+                    }
+                    Log.d(logTag, "Capture acknowledged by Flutter")
+                }
+
+                override fun error(errorCode: String, errorMessage: String?, errorDetails: Any?) {
+                    Log.w(logTag, "Flutter capture delivery failed: $errorCode $errorMessage")
+                }
+
+                override fun notImplemented() {
+                    Log.w(logTag, "Flutter capture handler is not ready")
+                }
+            },
+        )
+    }
+
+    private fun storePendingCapture(capture: Map<String, String?>) {
+        getSharedPreferences(preferencesName, MODE_PRIVATE)
+            .edit()
+            .putString("pending_capture_text", capture["text"])
+            .apply {
+                val source = capture["source"]
+                if (source.isNullOrBlank()) {
+                    remove("pending_capture_source")
+                } else {
+                    putString("pending_capture_source", source)
+                }
+            }
+            .apply()
+    }
+
+    private fun loadPendingCapture(): Map<String, String?>? {
+        val preferences = getSharedPreferences(preferencesName, MODE_PRIVATE)
+        val text = preferences.getString("pending_capture_text", null)?.trim()
+        if (text.isNullOrBlank()) return null
+        return mapOf(
+            "text" to text,
+            "source" to preferences.getString("pending_capture_source", null),
+        )
+    }
+
+    private fun clearStoredCapture() {
+        getSharedPreferences(preferencesName, MODE_PRIVATE)
+            .edit()
+            .remove("pending_capture_text")
+            .remove("pending_capture_source")
+            .apply()
     }
 }

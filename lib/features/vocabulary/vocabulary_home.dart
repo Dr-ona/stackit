@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../data/auth_service.dart';
+import '../../l10n/app_localizations.dart';
 import '../../models/capture_payload.dart';
 import '../../models/language_pair.dart';
 import '../../models/vocabulary_entry.dart';
@@ -9,9 +12,9 @@ import 'capture_preview_sheet.dart';
 import 'account_settings_sheet.dart';
 import 'language_pair_sheet.dart';
 import 'library_entry_tile.dart';
-import 'translation_meaning_list.dart';
 import 'vocabulary_controller.dart';
 import 'vocabulary_entry_detail_sheet.dart';
+import 'vocabulary_sense_list.dart';
 
 class VocabularyHome extends StatefulWidget {
   const VocabularyHome({
@@ -27,31 +30,53 @@ class VocabularyHome extends StatefulWidget {
   State<VocabularyHome> createState() => _VocabularyHomeState();
 }
 
-class _VocabularyHomeState extends State<VocabularyHome> {
+class _VocabularyHomeState extends State<VocabularyHome>
+    with WidgetsBindingObserver {
   int _page = 0;
   bool _sheetOpen = false;
   bool _languageSheetOpen = false;
+  bool _uiWorkScheduled = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     widget.controller.addListener(_onControllerChanged);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _onControllerChanged());
+    _onControllerChanged();
+    unawaited(widget.controller.pollPlatformCapture());
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     widget.controller.removeListener(_onControllerChanged);
     super.dispose();
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(widget.controller.pollPlatformCapture());
+    }
+  }
+
   void _onControllerChanged() {
-    if (mounted) setState(() {});
+    if (!mounted || _uiWorkScheduled) return;
+    _uiWorkScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _uiWorkScheduled = false;
+      if (!mounted) return;
+      setState(() {});
+      _drainPendingUiWork();
+    });
+  }
+
+  void _drainPendingUiWork() {
     if (widget.controller.isReady &&
-        !widget.controller.hasChosenLanguagePair &&
+        !widget.controller.hasChosenTargetLanguage &&
         !_languageSheetOpen) {
       _languageSheetOpen = true;
-      WidgetsBinding.instance.addPostFrameCallback((_) => _chooseLanguage());
+      unawaited(_chooseLanguage());
       return;
     }
     if (_sheetOpen ||
@@ -62,30 +87,92 @@ class _VocabularyHomeState extends State<VocabularyHome> {
     final capture = widget.controller.takePendingCapture();
     if (capture == null) return;
     _sheetOpen = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) => _showCapture(capture));
+    unawaited(_showCapture(capture));
   }
 
   Future<void> _chooseLanguage() async {
     if (!mounted) return;
-    await showLanguagePairSheet(
-      context,
-      widget.controller,
-      requiredSelection: true,
-    );
-    _languageSheetOpen = false;
-    _onControllerChanged();
+    try {
+      await showTargetLanguageSheet(
+        context,
+        widget.controller,
+        requiredSelection: true,
+      );
+    } finally {
+      _languageSheetOpen = false;
+      _onControllerChanged();
+    }
   }
 
   Future<void> _showCapture(CapturePayload capture) async {
     if (!mounted) return;
-    await showModalBottomSheet<void>(
+    try {
+      final saved = await showModalBottomSheet<bool>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: const Color(0xFFFFFCF5),
+        builder: (_) => CapturePreviewSheet(
+          capture: capture,
+          controller: widget.controller,
+        ),
+      );
+      if (saved == true && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.l10n.savedForReview(capture.text))),
+        );
+        if (capture.isManual) {
+          final entry = widget.controller.newestEntryForText(capture.text);
+          if (entry != null && mounted) {
+            await showVocabularyEntryDetails(
+              context,
+              entry: entry,
+              controller: widget.controller,
+            );
+          }
+        }
+      }
+    } finally {
+      _sheetOpen = false;
+      _onControllerChanged();
+    }
+  }
+
+  Future<void> _addWordManually() async {
+    var input = '';
+    final text = await showDialog<String>(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: const Color(0xFFFFFCF5),
-      builder: (_) =>
-          CapturePreviewSheet(capture: capture, controller: widget.controller),
+      builder: (dialogContext) => AlertDialog(
+        title: Text(context.l10n.addWord),
+        content: TextField(
+          autofocus: true,
+          textCapitalization: TextCapitalization.sentences,
+          onChanged: (value) => input = value,
+          onSubmitted: (value) => Navigator.pop(dialogContext, value.trim()),
+          decoration: InputDecoration(
+            labelText: context.l10n.wordOrPhrase,
+            hintText: context.l10n.wordOrPhraseHint,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: Text(context.l10n.cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, input.trim()),
+            child: Text(context.l10n.add),
+          ),
+        ],
+      ),
     );
-    _sheetOpen = false;
+    if (!mounted || text == null || text.trim().isEmpty) return;
+    final capture = CapturePayload.manual(text: text.trim());
+    if (_sheetOpen || _languageSheetOpen) {
+      await widget.controller.receiveCapture(capture);
+      return;
+    }
+    _sheetOpen = true;
+    await _showCapture(capture);
   }
 
   @override
@@ -95,6 +182,7 @@ class _VocabularyHomeState extends State<VocabularyHome> {
         controller: widget.controller,
         authService: widget.authService,
         onStartReview: () => setState(() => _page = 1),
+        onManualAdd: _addWordManually,
       ),
       ReviewPage(controller: widget.controller),
       _Library(controller: widget.controller),
@@ -104,20 +192,20 @@ class _VocabularyHomeState extends State<VocabularyHome> {
       bottomNavigationBar: NavigationBar(
         selectedIndex: _page,
         onDestinationSelected: (value) => setState(() => _page = value),
-        destinations: const [
+        destinations: [
           NavigationDestination(
-            icon: Icon(Icons.inbox_outlined),
-            selectedIcon: Icon(Icons.inbox),
-            label: 'Inbox',
+            icon: const Icon(Icons.inbox_outlined),
+            selectedIcon: const Icon(Icons.inbox),
+            label: context.l10n.inbox,
           ),
           NavigationDestination(
-            icon: Icon(Icons.refresh_rounded),
-            label: 'Review',
+            icon: const Icon(Icons.refresh_rounded),
+            label: context.l10n.review,
           ),
           NavigationDestination(
-            icon: Icon(Icons.book_outlined),
-            selectedIcon: Icon(Icons.book),
-            label: 'Library',
+            icon: const Icon(Icons.book_outlined),
+            selectedIcon: const Icon(Icons.book),
+            label: context.l10n.library,
           ),
         ],
       ),
@@ -130,11 +218,13 @@ class _Inbox extends StatelessWidget {
     required this.controller,
     required this.authService,
     required this.onStartReview,
+    required this.onManualAdd,
   });
 
   final VocabularyController controller;
   final AuthService authService;
   final VoidCallback onStartReview;
+  final VoidCallback onManualAdd;
 
   @override
   Widget build(BuildContext context) {
@@ -162,7 +252,7 @@ class _Inbox extends StatelessWidget {
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        'Your word inbox',
+                        context.l10n.wordInbox,
                         style: Theme.of(context).textTheme.headlineMedium
                             ?.copyWith(
                               fontWeight: FontWeight.w700,
@@ -170,30 +260,43 @@ class _Inbox extends StatelessWidget {
                             ),
                       ),
                       const SizedBox(height: 5),
-                      const Text(
-                        'New words stay here until their first review.',
-                        style: TextStyle(
+                      Text(
+                        context.l10n.newWordsStay,
+                        style: const TextStyle(
                           color: Color(0xFF657069),
                           fontSize: 12,
                         ),
                       ),
                       if (controller.isSyncing) ...[
                         const SizedBox(height: 5),
-                        const Text(
-                          'Syncing securely…',
-                          style: TextStyle(
+                        Text(
+                          context.l10n.syncing,
+                          style: const TextStyle(
                             color: Color(0xFF657069),
                             fontSize: 12,
                           ),
                         ),
                       ] else if (controller.cloudSyncError != null) ...[
                         const SizedBox(height: 5),
-                        Text(
-                          controller.cloudSyncError!,
-                          style: const TextStyle(
-                            color: Color(0xFF9A5A16),
-                            fontSize: 12,
-                          ),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            Flexible(
+                              child: Text(
+                                controller.cloudSyncError!,
+                                style: const TextStyle(
+                                  color: Color(0xFF9A5A16),
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: controller.isSyncing
+                                  ? null
+                                  : controller.retryCloudSync,
+                              child: Text(context.l10n.retry),
+                            ),
+                          ],
                         ),
                       ],
                     ],
@@ -209,13 +312,13 @@ class _Inbox extends StatelessWidget {
                     borderRadius: BorderRadius.circular(99),
                   ),
                   child: Text(
-                    '${inboxEntries.length} new',
+                    context.l10n.newCount(inboxEntries.length),
                     style: const TextStyle(fontWeight: FontWeight.w700),
                   ),
                 ),
                 const SizedBox(width: 8),
                 IconButton(
-                  tooltip: 'Account and settings',
+                  tooltip: context.l10n.accountAndSettings,
                   onPressed: () => showAccountSettings(
                     context,
                     controller: controller,
@@ -231,9 +334,22 @@ class _Inbox extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(24, 0, 24, 18),
           sliver: SliverToBoxAdapter(
             child: OutlinedButton.icon(
-              onPressed: () => showLanguagePairSheet(context, controller),
+              onPressed: () => showTargetLanguageSheet(context, controller),
               icon: const Icon(Icons.translate_rounded),
-              label: Text(controller.languagePair.label),
+              label: Text(
+                '${controller.languagePair.source.nativeLabel} → '
+                '${controller.languagePair.target.nativeLabel}',
+              ),
+            ),
+          ),
+        ),
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 18),
+          sliver: SliverToBoxAdapter(
+            child: FilledButton.tonalIcon(
+              onPressed: onManualAdd,
+              icon: const Icon(Icons.add_rounded),
+              label: Text(context.l10n.addWordDirectly),
             ),
           ),
         ),
@@ -244,10 +360,7 @@ class _Inbox extends StatelessWidget {
               child: FilledButton.icon(
                 onPressed: onStartReview,
                 icon: const Icon(Icons.school_outlined),
-                label: Text(
-                  'Start reviewing ${inboxEntries.length} new '
-                  '${inboxEntries.length == 1 ? 'word' : 'words'}',
-                ),
+                label: Text(context.l10n.startReviewing(inboxEntries.length)),
               ),
             ),
           ),
@@ -258,10 +371,7 @@ class _Inbox extends StatelessWidget {
         else if (inboxEntries.isEmpty)
           SliverFillRemaining(
             hasScrollBody: false,
-            child: _EmptyInbox(
-              pair: controller.languagePair,
-              totalSaved: controller.entries.length,
-            ),
+            child: _EmptyInbox(totalSaved: controller.entries.length),
           )
         else
           SliverPadding(
@@ -279,9 +389,8 @@ class _Inbox extends StatelessWidget {
 }
 
 class _EmptyInbox extends StatelessWidget {
-  const _EmptyInbox({required this.pair, required this.totalSaved});
+  const _EmptyInbox({required this.totalSaved});
 
-  final LanguagePair pair;
   final int totalSaved;
 
   @override
@@ -305,7 +414,7 @@ class _EmptyInbox extends StatelessWidget {
           ),
           const SizedBox(height: 24),
           Text(
-            totalSaved == 0 ? 'Meet a word worth keeping?' : 'Inbox clear',
+            totalSaved == 0 ? context.l10n.meetAWord : context.l10n.inboxClear,
             textAlign: TextAlign.center,
             style: Theme.of(
               context,
@@ -314,10 +423,8 @@ class _EmptyInbox extends StatelessWidget {
           const SizedBox(height: 10),
           Text(
             totalSaved == 0
-                ? 'Highlight ${pair.source.label} text in another app, then choose “Stackit”. '
-                      'If it is not listed, tap Share and choose Stackit instead.'
-                : 'No new words are waiting. Your $totalSaved saved '
-                      '${totalSaved == 1 ? 'word is' : 'words are'} still searchable in Library.',
+                ? context.l10n.captureInstructions
+                : context.l10n.clearInboxSummary(totalSaved),
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
               color: const Color(0xFF657069),
@@ -404,10 +511,13 @@ class _WordCard extends StatelessWidget {
                         ],
                       ),
                       const SizedBox(height: 6),
-                      TranslationMeaningList(
-                        translations: entry.translations,
-                        language: entry.targetLanguage,
+                      VocabularySenseList(
+                        senses: entry.senses,
+                        sourceText: entry.sourceText,
+                        sourceLanguage: entry.sourceLanguage,
+                        targetLanguage: entry.targetLanguage,
                         compact: true,
+                        showExamples: true,
                       ),
                     ],
                   ),
@@ -447,7 +557,7 @@ class _LibraryState extends State<_Library> {
         .where(
           (entry) =>
               entry.sourceText.toLowerCase().contains(normalized) ||
-              entry.translations.any(
+              entry.allTranslations.any(
                 (translation) => translation.toLowerCase().contains(normalized),
               ),
         )
@@ -458,22 +568,22 @@ class _LibraryState extends State<_Library> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Library',
+            context.l10n.library,
             style: Theme.of(
               context,
             ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 5),
           Text(
-            'All ${widget.controller.entries.length} saved words — new and reviewed.',
+            context.l10n.librarySummary(widget.controller.entries.length),
             style: const TextStyle(color: Color(0xFF657069)),
           ),
           const SizedBox(height: 18),
           TextField(
             onChanged: (value) => setState(() => query = value),
-            decoration: const InputDecoration(
-              hintText: 'Search English or Arabic',
-              prefixIcon: Icon(Icons.search_rounded),
+            decoration: InputDecoration(
+              hintText: context.l10n.searchHint,
+              prefixIcon: const Icon(Icons.search_rounded),
             ),
           ),
           const SizedBox(height: 18),
@@ -482,8 +592,8 @@ class _LibraryState extends State<_Library> {
                 ? Center(
                     child: Text(
                       query.isEmpty
-                          ? 'Your library is empty.'
-                          : 'No matches found.',
+                          ? context.l10n.emptyLibrary
+                          : context.l10n.noMatches,
                     ),
                   )
                 : ListView.separated(

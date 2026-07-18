@@ -8,6 +8,15 @@ import 'package:stackit/models/language_pair.dart';
 import 'package:stackit/models/vocabulary_entry.dart';
 
 void main() {
+  test('every source and target combination is selectable', () {
+    expect(LanguagePair.supported, hasLength(9));
+    for (final source in VocabularyLanguage.values) {
+      for (final target in VocabularyLanguage.values) {
+        expect(LanguagePair.route(source, target), isNotNull);
+      }
+    }
+  });
+
   TestWidgetsFlutterBinding.ensureInitialized();
 
   test('restores and persists the user-selected language direction', () async {
@@ -124,27 +133,37 @@ void main() {
     expect(controller.entries, hasLength(1));
   });
 
+  test('manual saves retain their source and can be opened directly', () async {
+    final bridge = _MemoryPlatformBridge();
+    final controller = VocabularyController(OfflineDictionary(), bridge);
+    await controller.initialize();
+    final result = await controller.lookup('stall');
+
+    await controller.save(const CapturePayload.manual(text: 'stall'), result);
+
+    final entry = controller.newestEntryForText('  STALL ');
+    expect(entry, isNotNull);
+    expect(entry?.source, CapturePayload.manualSource);
+    expect(entry?.senses, hasLength(6));
+  });
+
   test(
-    'capture direction follows the selected text without changing default',
+    'capture source follows text while the preferred target stays fixed',
     () async {
       final bridge = _MemoryPlatformBridge()
-        ..storedPair = LanguagePair.arabicToEnglish;
+        ..storedTarget = VocabularyLanguage.english;
       final controller = VocabularyController(OfflineDictionary(), bridge);
       await controller.initialize();
 
       expect(
-        controller.resolveLanguagePair('proprietary'),
-        LanguagePair.englishToArabic,
+        controller.resolveLanguagePair('propriété'),
+        LanguagePair.frenchToEnglish,
       );
       expect(
         controller.resolveLanguagePair('طعام'),
         LanguagePair.arabicToEnglish,
       );
-      expect(
-        controller.resolveLanguagePair('food طعام'),
-        LanguagePair.arabicToEnglish,
-      );
-      expect(controller.languagePair, LanguagePair.arabicToEnglish);
+      expect(controller.preferredTargetLanguage, VocabularyLanguage.english);
     },
   );
 
@@ -152,7 +171,7 @@ void main() {
     'auto-detected proprietary capture is found in the reverse dictionary',
     () async {
       final bridge = _MemoryPlatformBridge()
-        ..storedPair = LanguagePair.arabicToEnglish;
+        ..storedTarget = VocabularyLanguage.arabic;
       final controller = VocabularyController(OfflineDictionary(), bridge);
       await controller.initialize();
 
@@ -163,10 +182,58 @@ void main() {
       expect(result?.translations, contains('الملكية'));
     },
   );
+
+  test('dictionary probing detects unaccented French captures', () async {
+    final bridge = _MemoryPlatformBridge()
+      ..storedTarget = VocabularyLanguage.english;
+    final controller = VocabularyController(OfflineDictionary(), bridge);
+    await controller.initialize();
+
+    expect(
+      await controller.resolveCaptureLanguagePair('heureusement'),
+      LanguagePair.frenchToEnglish,
+    );
+
+    await controller.setPreferredTargetLanguage(VocabularyLanguage.arabic);
+    expect(
+      await controller.resolveCaptureLanguagePair('heureusement'),
+      LanguagePair.frenchToArabic,
+    );
+  });
+
+  test('capture in preferred target keeps the same-language route', () async {
+    final bridge = _MemoryPlatformBridge()
+      ..storedTarget = VocabularyLanguage.english;
+    final controller = VocabularyController(OfflineDictionary(), bridge);
+    await controller.initialize();
+
+    expect(
+      await controller.resolveCaptureLanguagePair('resilient'),
+      LanguagePair.englishToEnglish,
+    );
+  });
+
+  test(
+    'interface language is independent from translation preference',
+    () async {
+      final bridge = _MemoryPlatformBridge()
+        ..storedTarget = VocabularyLanguage.french;
+      final controller = VocabularyController(OfflineDictionary(), bridge);
+      await controller.initialize();
+
+      await controller.setInterfaceLanguage(VocabularyLanguage.arabic);
+
+      expect(controller.interfaceLanguage, VocabularyLanguage.arabic);
+      expect(controller.preferredTargetLanguage, VocabularyLanguage.french);
+      expect(bridge.storedInterfaceLanguage, VocabularyLanguage.arabic);
+    },
+  );
 }
 
 class _MemoryPlatformBridge extends PlatformBridge {
   LanguagePair? storedPair;
+  VocabularyLanguage? storedTarget;
+  VocabularyLanguage? storedInterfaceLanguage;
   List<VocabularyEntry> storedEntries = const [];
 
   @override
@@ -175,6 +242,24 @@ class _MemoryPlatformBridge extends PlatformBridge {
   @override
   Future<void> saveLanguagePair(LanguagePair pair) async {
     storedPair = pair;
+  }
+
+  @override
+  Future<VocabularyLanguage?> loadPreferredTargetLanguage() async =>
+      storedTarget;
+
+  @override
+  Future<void> savePreferredTargetLanguage(VocabularyLanguage language) async {
+    storedTarget = language;
+  }
+
+  @override
+  Future<VocabularyLanguage?> loadInterfaceLanguage() async =>
+      storedInterfaceLanguage;
+
+  @override
+  Future<void> saveInterfaceLanguage(VocabularyLanguage? language) async {
+    storedInterfaceLanguage = language;
   }
 
   @override

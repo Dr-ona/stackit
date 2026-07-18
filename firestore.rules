@@ -8,23 +8,53 @@ service cloud.firestore {
     // Collection: users/{userId}/vocabulary
     // Document ID: locally generated ASCII identifier, 1–100 characters
     // Fields:
+    //   schemaVersion: int (optional for legacy; exactly 2 when senses exist)
     //   sourceText: string (required, 1–200)
-    //   translations: list (required, 1–32 alternatives)
-    //   sourceLanguage/targetLanguage: BCP-47-like language codes
+    //   senses: list (v2 required, 1–8 strict sense maps)
+    //     id: ASCII string (1–64, unique IDs enforced by the client)
+    //     translations: list (1–16 equivalent translations for this sense)
+    //     definition: string (1–4,000)
+    //     partOfSpeech: string|null (max 100)
+    //     examples: list (0–6 strict sourceText/translation maps)
+    //   translations/definition/example/exampleTranslation: required legacy
+    //     projection of the primary sense during the v2 rollout
+    //   sourceLanguage/targetLanguage: one of en/ar/fr; every source-target
+    //     combination is supported, including same-language study
     //   dictionaryRevision: int (required, non-negative)
     //   definition: string (required, 1–4,000)
     //   createdAt: timestamp (required, immutable)
     //   updatedAt: timestamp (required, monotonic on update)
     //   source: string|null (required key, max 500)
     //   example: string|null (required key, max 2,000)
+    //   exampleTranslation: string|null (required key, max 2,000)
     //   contextText: string|null (required key, max 4,000)
     //   contextualExplanation: string|null (required key, max 4,000)
     //   contextualExample: string|null (required key, max 2,000)
+    //   contextualExampleTranslation: string|null (required key, max 2,000)
+    //   contextualSenseId: string|null (v2 required key, max 64)
     //   relatedPhrases: list (required, 0–4 strings, each max 500)
     //   reviewCount: int (required, 0–100,000)
     //   intervalDays: int (required, 0–60)
     //   nextReviewAt: timestamp|null (required key)
     //   lastReviewedAt: timestamp|null (required key)
+    //
+    // Collection: users/{userId}/profile
+    // Document ID: fixed value "main"
+    // Fields:
+    //   schemaVersion: int (required, exactly 2)
+    //   displayName: string|null (required key, 1–80)
+    //   avatarStoragePath: owner-bound string|null (required key)
+    //   nativeLanguage/interfaceLanguage: language-code string|null
+    //   learningLanguages: list (required, 0–8 strict preference maps)
+    //   preferredTargetLanguage: language-code string (required)
+    //   dailyReviewGoal: int (required, 1–100)
+    //   reviewIntensity: gentle|balanced|intensive
+    //   interests: list (required, 0–12 strings, each 1–60)
+    //   learningPurposes: list (required, 0–8 strings, each 1–80)
+    //   aiEnabled/notificationsEnabled/analyticsConsent: bool
+    //   onboardingCompleted: bool
+    //   createdAt: timestamp (required, immutable)
+    //   updatedAt: timestamp (required, monotonic on update)
     //
     // Ownership is encoded only in the userId path segment. No public
     // profiles, PII, roles, permissions, or client-writable owner fields exist.
@@ -60,9 +90,11 @@ service cloud.firestore {
         'updatedAt',
         'source',
         'example',
+        'exampleTranslation',
         'contextText',
         'contextualExplanation',
         'contextualExample',
+        'contextualExampleTranslation',
         'relatedPhrases',
         'reviewCount',
         'intervalDays',
@@ -73,7 +105,9 @@ service cloud.firestore {
 
     function hasOnlyVocabularyFields(data) {
       return data.keys().hasOnly([
+        'schemaVersion',
         'sourceText',
+        'senses',
         'translations',
         'sourceLanguage',
         'targetLanguage',
@@ -83,9 +117,12 @@ service cloud.firestore {
         'updatedAt',
         'source',
         'example',
+        'exampleTranslation',
         'contextText',
         'contextualExplanation',
         'contextualExample',
+        'contextualExampleTranslation',
+        'contextualSenseId',
         'relatedPhrases',
         'reviewCount',
         'intervalDays',
@@ -114,6 +151,18 @@ service cloud.firestore {
         value.size() >= 2 &&
         value.size() <= 20 &&
         value.matches('^[A-Za-z]{2,3}([_-][A-Za-z]{2,8})*$');
+    }
+
+    function isSupportedVocabularyLanguage(value) {
+      return value in ['en', 'ar', 'fr'];
+    }
+
+    function isOptionalLanguageCode(value) {
+      return value == null || isLanguageCode(value);
+    }
+
+    function isOptionalDisplayName(value) {
+      return value == null || isBoundedString(value, 1, 80);
     }
 
     function isValidTranslations(value) {
@@ -159,6 +208,116 @@ service cloud.firestore {
         isBoundedString(value[index], 1, 2000);
     }
 
+    function isValidSenseTranslationAt(value, index) {
+      return value.size() <= index ||
+        isBoundedString(value[index], 1, 2000);
+    }
+
+    function isValidSenseTranslations(value) {
+      return value is list &&
+        value.size() >= 1 &&
+        value.size() <= 16 &&
+        isValidSenseTranslationAt(value, 0) &&
+        isValidSenseTranslationAt(value, 1) &&
+        isValidSenseTranslationAt(value, 2) &&
+        isValidSenseTranslationAt(value, 3) &&
+        isValidSenseTranslationAt(value, 4) &&
+        isValidSenseTranslationAt(value, 5) &&
+        isValidSenseTranslationAt(value, 6) &&
+        isValidSenseTranslationAt(value, 7) &&
+        isValidSenseTranslationAt(value, 8) &&
+        isValidSenseTranslationAt(value, 9) &&
+        isValidSenseTranslationAt(value, 10) &&
+        isValidSenseTranslationAt(value, 11) &&
+        isValidSenseTranslationAt(value, 12) &&
+        isValidSenseTranslationAt(value, 13) &&
+        isValidSenseTranslationAt(value, 14) &&
+        isValidSenseTranslationAt(value, 15);
+    }
+
+    function isValidExampleAt(value, index) {
+      return value.size() <= index ||
+        (value[index] is map &&
+          value[index].keys().hasAll(['sourceText', 'translation']) &&
+          value[index].keys().hasOnly(['sourceText', 'translation']) &&
+          isBoundedString(value[index].sourceText, 1, 2000) &&
+          isOptionalBoundedString(value[index].translation, 2000));
+    }
+
+    function isValidExamples(value) {
+      return value is list &&
+        value.size() <= 6 &&
+        isValidExampleAt(value, 0) &&
+        isValidExampleAt(value, 1) &&
+        isValidExampleAt(value, 2) &&
+        isValidExampleAt(value, 3) &&
+        isValidExampleAt(value, 4) &&
+        isValidExampleAt(value, 5);
+    }
+
+    function isValidSenseAt(value, index) {
+      return value.size() <= index ||
+        (value[index] is map &&
+          value[index].keys().hasAll([
+            'id',
+            'translations',
+            'definition',
+            'partOfSpeech',
+            'examples'
+          ]) &&
+          value[index].keys().hasOnly([
+            'id',
+            'translations',
+            'definition',
+            'partOfSpeech',
+            'examples'
+          ]) &&
+          isBoundedString(value[index].id, 1, 64) &&
+          value[index].id.matches('^[A-Za-z0-9_-]+$') &&
+          isValidSenseTranslations(value[index].translations) &&
+          isBoundedString(value[index].definition, 1, 4000) &&
+          isOptionalBoundedString(value[index].partOfSpeech, 100) &&
+          isValidExamples(value[index].examples));
+    }
+
+    function isValidSenses(value) {
+      return value is list &&
+        value.size() >= 1 &&
+        value.size() <= 8 &&
+        isValidSenseAt(value, 0) &&
+        isValidSenseAt(value, 1) &&
+        isValidSenseAt(value, 2) &&
+        isValidSenseAt(value, 3) &&
+        isValidSenseAt(value, 4) &&
+        isValidSenseAt(value, 5) &&
+        isValidSenseAt(value, 6) &&
+        isValidSenseAt(value, 7);
+    }
+
+    function isValidVocabularySchema(data) {
+      return (!('schemaVersion' in data) &&
+          !('senses' in data) &&
+          !('contextualSenseId' in data)) ||
+        (data.keys().hasAll([
+            'schemaVersion',
+            'senses',
+            'contextualSenseId'
+          ]) &&
+          data.schemaVersion is int &&
+          data.schemaVersion == 2 &&
+          isValidSenses(data.senses) &&
+          isOptionalBoundedString(data.contextualSenseId, 64) &&
+          data.translations == data.senses[0].translations &&
+          data.definition == data.senses[0].definition &&
+          ((data.senses[0].examples.size() == 0 &&
+              data.example == null &&
+              data.exampleTranslation == null) ||
+            (data.senses[0].examples.size() > 0 &&
+              data.example == data.senses[0].examples[0].sourceText &&
+              data.exampleTranslation ==
+                data.senses[0].examples[0].translation)));
+    }
+
     function isValidEntryId(entryId) {
       return entryId.size() >= 1 &&
         entryId.size() <= 100 &&
@@ -183,11 +342,11 @@ service cloud.firestore {
     function isValidVocabulary(data) {
       return hasRequiredVocabularyFields(data) &&
         hasOnlyVocabularyFields(data) &&
+        isValidVocabularySchema(data) &&
         isBoundedString(data.sourceText, 1, 200) &&
         isValidTranslations(data.translations) &&
-        isLanguageCode(data.sourceLanguage) &&
-        isLanguageCode(data.targetLanguage) &&
-        data.sourceLanguage != data.targetLanguage &&
+        isSupportedVocabularyLanguage(data.sourceLanguage) &&
+        isSupportedVocabularyLanguage(data.targetLanguage) &&
         data.dictionaryRevision is int &&
         data.dictionaryRevision >= 0 &&
         data.dictionaryRevision <= 100000 &&
@@ -198,9 +357,11 @@ service cloud.firestore {
         data.updatedAt <= request.time + duration.value(5, 'm') &&
         isOptionalBoundedString(data.source, 500) &&
         isOptionalBoundedString(data.example, 2000) &&
+        isOptionalBoundedString(data.exampleTranslation, 2000) &&
         isOptionalBoundedString(data.contextText, 4000) &&
         isOptionalBoundedString(data.contextualExplanation, 4000) &&
         isOptionalBoundedString(data.contextualExample, 2000) &&
+        isOptionalBoundedString(data.contextualExampleTranslation, 2000) &&
         isValidRelatedPhrases(data.relatedPhrases) &&
         data.reviewCount is int &&
         data.reviewCount >= 0 &&
@@ -210,6 +371,156 @@ service cloud.firestore {
         data.intervalDays <= 60 &&
         isOptionalTimestamp(data.nextReviewAt) &&
         isOptionalTimestamp(data.lastReviewedAt);
+    }
+
+    function hasRequiredProfileFields(data) {
+      return data.keys().hasAll([
+        'schemaVersion',
+        'displayName',
+        'avatarStoragePath',
+        'nativeLanguage',
+        'interfaceLanguage',
+        'learningLanguages',
+        'preferredTargetLanguage',
+        'dailyReviewGoal',
+        'reviewIntensity',
+        'interests',
+        'learningPurposes',
+        'aiEnabled',
+        'notificationsEnabled',
+        'analyticsConsent',
+        'onboardingCompleted',
+        'createdAt',
+        'updatedAt'
+      ]);
+    }
+
+    function hasOnlyProfileFields(data) {
+      return data.keys().hasOnly([
+        'schemaVersion',
+        'displayName',
+        'avatarStoragePath',
+        'nativeLanguage',
+        'interfaceLanguage',
+        'learningLanguages',
+        'preferredTargetLanguage',
+        'dailyReviewGoal',
+        'reviewIntensity',
+        'interests',
+        'learningPurposes',
+        'aiEnabled',
+        'notificationsEnabled',
+        'analyticsConsent',
+        'onboardingCompleted',
+        'createdAt',
+        'updatedAt'
+      ]);
+    }
+
+    function isValidProficiency(value) {
+      return value in [
+        'beginner',
+        'elementary',
+        'intermediate',
+        'upper-intermediate',
+        'advanced',
+        'proficient'
+      ];
+    }
+
+    function isValidLearningLanguageAt(value, index) {
+      return value.size() <= index ||
+        (value[index] is map &&
+          value[index].keys().hasAll([
+            'languageCode',
+            'proficiency',
+            'pronunciationLocale'
+          ]) &&
+          value[index].keys().hasOnly([
+            'languageCode',
+            'proficiency',
+            'pronunciationLocale'
+          ]) &&
+          isLanguageCode(value[index].languageCode) &&
+          isValidProficiency(value[index].proficiency) &&
+          isOptionalLanguageCode(value[index].pronunciationLocale));
+    }
+
+    function isValidLearningLanguages(value) {
+      return value is list &&
+        value.size() <= 8 &&
+        isValidLearningLanguageAt(value, 0) &&
+        isValidLearningLanguageAt(value, 1) &&
+        isValidLearningLanguageAt(value, 2) &&
+        isValidLearningLanguageAt(value, 3) &&
+        isValidLearningLanguageAt(value, 4) &&
+        isValidLearningLanguageAt(value, 5) &&
+        isValidLearningLanguageAt(value, 6) &&
+        isValidLearningLanguageAt(value, 7);
+    }
+
+    function isValidBoundedStringAt(value, index, maxLength) {
+      return value.size() <= index ||
+        isBoundedString(value[index], 1, maxLength);
+    }
+
+    function isValidInterests(value) {
+      return value is list &&
+        value.size() <= 12 &&
+        isValidBoundedStringAt(value, 0, 60) &&
+        isValidBoundedStringAt(value, 1, 60) &&
+        isValidBoundedStringAt(value, 2, 60) &&
+        isValidBoundedStringAt(value, 3, 60) &&
+        isValidBoundedStringAt(value, 4, 60) &&
+        isValidBoundedStringAt(value, 5, 60) &&
+        isValidBoundedStringAt(value, 6, 60) &&
+        isValidBoundedStringAt(value, 7, 60) &&
+        isValidBoundedStringAt(value, 8, 60) &&
+        isValidBoundedStringAt(value, 9, 60) &&
+        isValidBoundedStringAt(value, 10, 60) &&
+        isValidBoundedStringAt(value, 11, 60);
+    }
+
+    function isValidLearningPurposes(value) {
+      return value is list &&
+        value.size() <= 8 &&
+        isValidBoundedStringAt(value, 0, 80) &&
+        isValidBoundedStringAt(value, 1, 80) &&
+        isValidBoundedStringAt(value, 2, 80) &&
+        isValidBoundedStringAt(value, 3, 80) &&
+        isValidBoundedStringAt(value, 4, 80) &&
+        isValidBoundedStringAt(value, 5, 80) &&
+        isValidBoundedStringAt(value, 6, 80) &&
+        isValidBoundedStringAt(value, 7, 80);
+    }
+
+    // This validator is called for every profile create and update.
+    function isValidProfile(data, userId) {
+      return hasRequiredProfileFields(data) &&
+        hasOnlyProfileFields(data) &&
+        data.schemaVersion is int &&
+        data.schemaVersion == 2 &&
+        isOptionalDisplayName(data.displayName) &&
+        (data.avatarStoragePath == null ||
+          data.avatarStoragePath == 'users/' + userId + '/profile/avatar') &&
+        isOptionalLanguageCode(data.nativeLanguage) &&
+        isOptionalLanguageCode(data.interfaceLanguage) &&
+        isValidLearningLanguages(data.learningLanguages) &&
+        isLanguageCode(data.preferredTargetLanguage) &&
+        data.dailyReviewGoal is int &&
+        data.dailyReviewGoal >= 1 &&
+        data.dailyReviewGoal <= 100 &&
+        data.reviewIntensity in ['gentle', 'balanced', 'intensive'] &&
+        isValidInterests(data.interests) &&
+        isValidLearningPurposes(data.learningPurposes) &&
+        data.aiEnabled is bool &&
+        data.notificationsEnabled is bool &&
+        data.analyticsConsent is bool &&
+        data.onboardingCompleted is bool &&
+        data.createdAt is timestamp &&
+        data.createdAt <= request.time + duration.value(5, 'm') &&
+        data.updatedAt is timestamp &&
+        data.updatedAt <= request.time + duration.value(5, 'm');
     }
 
     match /users/{userId}/vocabulary/{entryId} {
@@ -228,6 +539,24 @@ service cloud.firestore {
         isValidVocabulary(request.resource.data);
 
       allow delete: if isOwner(userId);
+    }
+
+    match /users/{userId}/profile/{profileId} {
+      allow read: if profileId == 'main' && isOwner(userId);
+
+      allow create: if profileId == 'main' &&
+        isOwner(userId) &&
+        uidUnchanged() &&
+        isValidProfile(request.resource.data, userId);
+
+      allow update: if profileId == 'main' &&
+        isOwner(userId) &&
+        uidNotModified() &&
+        request.resource.data.createdAt == resource.data.createdAt &&
+        request.resource.data.updatedAt >= resource.data.updatedAt &&
+        isValidProfile(request.resource.data, userId);
+
+      allow delete: if profileId == 'main' && isOwner(userId);
     }
 
     match /{document=**} {

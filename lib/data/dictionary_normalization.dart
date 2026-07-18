@@ -17,6 +17,15 @@ String normalizeArabicTerm(String value) {
       .replaceAll(RegExp(r'\s+'), ' ');
 }
 
+String normalizeFrenchTerm(String value) {
+  return value
+      .trim()
+      .toLowerCase()
+      .replaceAll('’', "'")
+      .replaceAll(RegExp(r"^[^a-zà-öø-ÿœæç0-9]+|[^a-zà-öø-ÿœæç0-9]+$"), '')
+      .replaceAll(RegExp(r'\s+'), ' ');
+}
+
 Iterable<String> englishBaseFormCandidates(String value) sync* {
   if (value.contains(' ')) return;
   if (value.endsWith('ies') && value.length > 4) {

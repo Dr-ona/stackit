@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 
 import '../models/capture_payload.dart';
 import '../models/language_pair.dart';
+import '../models/user_profile.dart';
 import '../models/vocabulary_entry.dart';
 
 class PlatformBridge {
@@ -12,6 +13,9 @@ class PlatformBridge {
   Future<void> Function(CapturePayload payload)? onSelectionReceived;
   List<VocabularyEntry> _memoryEntries = const [];
   String? _memoryLanguagePair;
+  String? _memoryPreferredTargetLanguage;
+  String? _memoryInterfaceLanguage;
+  String? _memoryUserProfile;
   bool _memoryReviewReminders = false;
 
   PlatformBridge() {
@@ -77,6 +81,50 @@ class PlatformBridge {
     }
   }
 
+  Future<VocabularyLanguage?> loadPreferredTargetLanguage() async {
+    try {
+      final code = await _channel.invokeMethod<String>(
+        'loadPreferredTargetLanguage',
+      );
+      return VocabularyLanguage.tryFromCode(code);
+    } on MissingPluginException {
+      return VocabularyLanguage.tryFromCode(_memoryPreferredTargetLanguage);
+    }
+  }
+
+  Future<void> savePreferredTargetLanguage(VocabularyLanguage language) async {
+    _memoryPreferredTargetLanguage = language.code;
+    try {
+      await _channel.invokeMethod<void>(
+        'savePreferredTargetLanguage',
+        language.code,
+      );
+    } on MissingPluginException {
+      // The in-memory fallback keeps tests and unsupported platforms usable.
+    }
+  }
+
+  Future<VocabularyLanguage?> loadInterfaceLanguage() async {
+    try {
+      final code = await _channel.invokeMethod<String>('loadInterfaceLanguage');
+      return VocabularyLanguage.tryFromCode(code);
+    } on MissingPluginException {
+      return VocabularyLanguage.tryFromCode(_memoryInterfaceLanguage);
+    }
+  }
+
+  Future<void> saveInterfaceLanguage(VocabularyLanguage? language) async {
+    _memoryInterfaceLanguage = language?.code;
+    try {
+      await _channel.invokeMethod<void>(
+        'saveInterfaceLanguage',
+        language?.code,
+      );
+    } on MissingPluginException {
+      // The in-memory fallback keeps tests and unsupported platforms usable.
+    }
+  }
+
   Future<bool> loadReviewReminders() async {
     try {
       return await _channel.invokeMethod<bool>('loadReviewReminders') ?? false;
@@ -89,6 +137,34 @@ class PlatformBridge {
     _memoryReviewReminders = enabled;
     try {
       await _channel.invokeMethod<void>('saveReviewReminders', enabled);
+    } on MissingPluginException {
+      // The in-memory fallback keeps tests and unsupported platforms usable.
+    }
+  }
+
+  Future<UserProfile?> loadUserProfile({String? userId}) async {
+    try {
+      final raw = await _channel.invokeMethod<String>('loadUserProfile');
+      return _decodeUserProfile(raw, userId: userId);
+    } on MissingPluginException {
+      return _decodeUserProfile(_memoryUserProfile, userId: userId);
+    }
+  }
+
+  Future<void> saveUserProfile(UserProfile profile, {String? userId}) async {
+    final encoded = jsonEncode({'userId': userId, 'profile': profile.toJson()});
+    _memoryUserProfile = encoded;
+    try {
+      await _channel.invokeMethod<void>('saveUserProfile', encoded);
+    } on MissingPluginException {
+      // The in-memory fallback keeps tests and unsupported platforms usable.
+    }
+  }
+
+  Future<void> clearUserProfile() async {
+    _memoryUserProfile = null;
+    try {
+      await _channel.invokeMethod<void>('clearUserProfile');
     } on MissingPluginException {
       // The in-memory fallback keeps tests and unsupported platforms usable.
     }
@@ -109,5 +185,21 @@ class PlatformBridge {
     if (value is! Map) return null;
     final payload = CapturePayload.fromMap(value.cast<Object?, Object?>());
     return payload.text.isEmpty ? null : payload;
+  }
+
+  UserProfile? _decodeUserProfile(String? raw, {String? userId}) {
+    if (raw == null || raw.isEmpty) return null;
+    try {
+      final envelope = jsonDecode(raw) as Map<String, Object?>;
+      final storedUserId = envelope['userId'] as String?;
+      if (userId != null && storedUserId != userId) return null;
+      final profile = envelope['profile'];
+      if (profile is! Map<Object?, Object?>) return null;
+      return UserProfile.fromJson(profile.cast<String, Object?>());
+    } on FormatException {
+      return null;
+    } on TypeError {
+      return null;
+    }
   }
 }

@@ -1,18 +1,25 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:ui' as ui;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../data/offline_dictionary.dart';
 import '../../data/platform_bridge.dart';
+import '../../data/profile_avatar_store.dart';
+import '../../data/crash_reporter.dart';
 import '../../data/contextual_explanation_provider.dart';
+import '../../data/meaning_discovery_provider.dart';
 import '../../data/review_notification_service.dart';
+import '../../data/user_profile_cloud_store.dart';
 import '../../data/vocabulary_cloud_store.dart';
 import '../../models/capture_payload.dart';
 import '../../models/dictionary_result.dart';
 import '../../models/language_pair.dart';
+import '../../models/user_profile.dart';
 import '../../models/vocabulary_entry.dart';
+import '../../models/vocabulary_sense.dart';
 import '../review/review_scheduler.dart';
 
 class VocabularyController extends ChangeNotifier {
@@ -22,6 +29,10 @@ class VocabularyController extends ChangeNotifier {
     this._cloudStore,
     this._contextualExplanationService,
     this._reviewNotificationService,
+    this._profileStore,
+    this._meaningDiscoveryService,
+    this._profileAvatarStore,
+    this._crashReporter,
   ]);
 
   final OfflineDictionary _dictionary;
@@ -29,6 +40,10 @@ class VocabularyController extends ChangeNotifier {
   final VocabularyCloudStore? _cloudStore;
   final ContextualExplanationService? _contextualExplanationService;
   final ReviewNotificationService? _reviewNotificationService;
+  final UserProfileCloudStore? _profileStore;
+  final MeaningDiscoveryService? _meaningDiscoveryService;
+  final ProfileAvatarStore? _profileAvatarStore;
+  final CrashReporter? _crashReporter;
   final ReviewScheduler _reviewScheduler = const ReviewScheduler();
 
   List<VocabularyEntry> _entries = const [];
@@ -37,10 +52,17 @@ class VocabularyController extends ChangeNotifier {
   bool _isSyncing = false;
   String? _activeUserId;
   String? _cloudSyncError;
-  LanguagePair _languagePair = LanguagePair.englishToArabic;
-  bool _hasChosenLanguagePair = false;
+  UserProfile? _userProfile;
+  bool _isProfileSyncing = false;
+  String? _profileSyncError;
+  VocabularyLanguage _preferredTarget = VocabularyLanguage.arabic;
+  VocabularyLanguage _lastSource = VocabularyLanguage.english;
+  VocabularyLanguage? _interfaceLanguage;
+  bool _hasChosenTargetLanguage = false;
   bool _reviewRemindersEnabled = false;
   String? _explainingEntryId;
+  String? _explainingSenseId;
+  String? _discoveringMeaningsEntryId;
 
   List<VocabularyEntry> get entries => List.unmodifiable(_entries);
   List<VocabularyEntry> get inboxEntries =>
@@ -49,10 +71,30 @@ class VocabularyController extends ChangeNotifier {
   bool get isReady => _isReady;
   bool get isSyncing => _isSyncing;
   String? get cloudSyncError => _cloudSyncError;
-  LanguagePair get languagePair => _languagePair;
-  bool get hasChosenLanguagePair => _hasChosenLanguagePair;
+  UserProfile? get userProfile => _userProfile;
+  bool get isProfileSyncing => _isProfileSyncing;
+  String? get profileSyncError => _profileSyncError;
+  VocabularyLanguage get preferredTargetLanguage => _preferredTarget;
+  VocabularyLanguage? get interfaceLanguage => _interfaceLanguage;
+  bool get hasChosenTargetLanguage => _hasChosenTargetLanguage;
+  List<LanguagePair> get availableCaptureRoutes => LanguagePair.supported;
+  List<LanguagePair> get preferredTargetRoutes =>
+      LanguagePair.routesTo(_preferredTarget);
+  LanguagePair get languagePair =>
+      LanguagePair.route(_lastSource, _preferredTarget) ??
+      LanguagePair.routesTo(_preferredTarget).first;
+  bool get hasChosenLanguagePair => _hasChosenTargetLanguage;
   bool get reviewRemindersEnabled => _reviewRemindersEnabled;
+  bool get canDiscoverMeanings => _meaningDiscoveryService != null;
   String? get explainingEntryId => _explainingEntryId;
+  String? get explainingSenseId => _explainingSenseId;
+  String? get discoveringMeaningsEntryId => _discoveringMeaningsEntryId;
+  int get reviewedCount =>
+      _entries.where((entry) => entry.reviewCount > 0).length;
+  int get masteredCount => _entries
+      .where((entry) => entry.reviewCount >= 5 && entry.intervalDays >= 14)
+      .length;
+  int get dueCount => dueEntries(limit: _entries.length).length;
 
   List<VocabularyEntry> dueEntries({DateTime? now, int limit = 5}) {
     final reviewTime = now ?? DateTime.now();
@@ -67,14 +109,40 @@ class VocabularyController extends ChangeNotifier {
 
   Future<void> initialize() async {
     _platformBridge.onSelectionReceived = receiveCapture;
+    _interfaceLanguage = await _platformBridge.loadInterfaceLanguage();
+    final storedTarget = await _platformBridge.loadPreferredTargetLanguage();
     final storedPair = await _platformBridge.loadLanguagePair();
-    if (storedPair != null) {
-      _languagePair = storedPair;
-      _hasChosenLanguagePair = true;
+    if (storedTarget != null) {
+      _preferredTarget = storedTarget;
+      _lastSource = storedPair?.target == storedTarget
+          ? storedPair!.source
+          : LanguagePair.routesTo(storedTarget).first.source;
+      _hasChosenTargetLanguage = true;
+    } else if (storedPair != null) {
+      _preferredTarget = storedPair.target;
+      _lastSource = storedPair.source;
+      _hasChosenTargetLanguage = true;
+      await _platformBridge.savePreferredTargetLanguage(_preferredTarget);
+    } else {
+      final deviceLanguage = VocabularyLanguage.tryFromCode(
+        ui.PlatformDispatcher.instance.locale.languageCode,
+      );
+      if (deviceLanguage != null &&
+          LanguagePair.availableTargets.contains(deviceLanguage)) {
+        _preferredTarget = deviceLanguage;
+      }
+      _lastSource = LanguagePair.routesTo(_preferredTarget).first.source;
     }
-    await _dictionary.load(_languagePair);
     _entries = await _platformBridge.loadEntries();
+    if (_entries.any((entry) => entry.needsSchemaMigration)) {
+      _entries = _entries
+          .map((entry) => entry.copyWith(senses: entry.senses))
+          .toList(growable: false);
+      await _platformBridge.saveEntries(_entries);
+    }
     _reviewRemindersEnabled = await _platformBridge.loadReviewReminders();
+    _userProfile = await _platformBridge.loadUserProfile();
+    _applyProfilePreferences(_userProfile);
     if (_reviewRemindersEnabled) {
       await _reviewNotificationService?.scheduleDaily();
     }
@@ -82,8 +150,12 @@ class VocabularyController extends ChangeNotifier {
     _isReady = true;
     notifyListeners();
 
-    final initial = await _platformBridge.takeInitialSelection();
-    if (initial != null) await receiveCapture(initial);
+    await pollPlatformCapture();
+  }
+
+  Future<void> pollPlatformCapture() async {
+    final capture = await _platformBridge.takeInitialSelection();
+    if (capture != null) await receiveCapture(capture);
   }
 
   Future<void> receiveCapture(CapturePayload payload) async {
@@ -99,22 +171,103 @@ class VocabularyController extends ChangeNotifier {
 
   Future<void> setLanguagePair(LanguagePair pair) async {
     await _dictionary.load(pair);
-    _languagePair = pair;
-    _hasChosenLanguagePair = true;
+    _preferredTarget = pair.target;
+    _lastSource = pair.source;
+    _hasChosenTargetLanguage = true;
     notifyListeners();
     await _platformBridge.saveLanguagePair(pair);
+    await _platformBridge.savePreferredTargetLanguage(pair.target);
+    await _persistProfileChange(
+      (profile) =>
+          profile.copyWith(preferredTargetLanguageCode: pair.target.code),
+    );
+  }
+
+  Future<void> setPreferredTargetLanguage(VocabularyLanguage language) async {
+    final routes = LanguagePair.routesTo(language);
+    if (routes.isEmpty) {
+      throw UnsupportedError(
+        'No offline routes translate into ${language.label}.',
+      );
+    }
+    _preferredTarget = language;
+    if (LanguagePair.route(_lastSource, language) == null) {
+      _lastSource = routes.first.source;
+    }
+    _hasChosenTargetLanguage = true;
+    notifyListeners();
+    await _platformBridge.savePreferredTargetLanguage(language);
+    await _persistProfileChange(
+      (profile) => profile.copyWith(preferredTargetLanguageCode: language.code),
+    );
+  }
+
+  Future<void> setInterfaceLanguage(VocabularyLanguage? language) async {
+    _interfaceLanguage = language;
+    notifyListeners();
+    await _platformBridge.saveInterfaceLanguage(language);
+    await _persistProfileChange(
+      (profile) => profile.copyWith(interfaceLanguageCode: language?.code),
+    );
   }
 
   Future<DictionaryResult?> lookup(String text, {LanguagePair? pair}) {
-    return _dictionary.lookup(text, pair ?? _languagePair);
+    return _dictionary.lookup(text, pair ?? languagePair);
   }
 
   LanguagePair resolveLanguagePair(String text) {
-    return LanguagePair.resolveForText(text, _languagePair);
+    return autoLanguagePair(text) ?? languagePair;
+  }
+
+  LanguagePair? autoLanguagePair(String text) {
+    return LanguagePair.resolveForTarget(
+      text,
+      _preferredTarget,
+      fallbackSource: _lastSource,
+    );
+  }
+
+  Future<LanguagePair?> resolveCaptureLanguagePair(String text) async {
+    final scriptHint = LanguagePair.detectSourceLanguage(text);
+    if (scriptHint == VocabularyLanguage.arabic ||
+        scriptHint == VocabularyLanguage.french) {
+      return _bestAvailableRouteFrom(scriptHint!);
+    }
+
+    final latinSources = LanguagePair.supported
+        .map((pair) => pair.source)
+        .where((language) => language.writingSystem == WritingSystem.latin)
+        .toSet();
+    final matches = <VocabularyLanguage>[];
+    for (final source in latinSources) {
+      if (await _dictionary.recognizesSource(text, source)) {
+        matches.add(source);
+      }
+    }
+    if (matches.length == 1) {
+      return _bestAvailableRouteFrom(matches.single);
+    }
+    if (scriptHint != null) {
+      return _bestAvailableRouteFrom(scriptHint);
+    }
+    return null;
+  }
+
+  LanguagePair? _bestAvailableRouteFrom(VocabularyLanguage source) {
+    final preferred = LanguagePair.route(source, _preferredTarget);
+    if (preferred != null) return preferred;
+
+    // A captured word can already be in the user's preferred target language.
+    // In that case reverse the most recently used relationship instead of
+    // producing an invalid same-language route.
+    final reciprocal = LanguagePair.route(source, _lastSource);
+    if (reciprocal != null) return reciprocal;
+
+    return null;
   }
 
   bool contains(String text, {LanguagePair? pair}) {
-    final selectedPair = pair ?? _languagePair;
+    final selectedPair = pair ?? languagePair;
     final normalized = text.trim().toLowerCase();
     return _entries.any(
       (entry) =>
@@ -122,6 +275,14 @@ class VocabularyController extends ChangeNotifier {
           entry.targetLanguage == selectedPair.target &&
           entry.sourceText.trim().toLowerCase() == normalized,
     );
+  }
+
+  VocabularyEntry? newestEntryForText(String text) {
+    final normalized = text.trim().toLowerCase();
+    for (final entry in _entries) {
+      if (entry.sourceText.trim().toLowerCase() == normalized) return entry;
+    }
+    return null;
   }
 
   Future<void> save(
@@ -132,27 +293,34 @@ class VocabularyController extends ChangeNotifier {
     final selectedPair =
         pair ??
         (result == null
-            ? _languagePair
+            ? languagePair
             : LanguagePair(
                 source: result.sourceLanguage,
                 target: result.targetLanguage,
               ));
     if (contains(capture.text, pair: selectedPair)) return;
     final now = DateTime.now();
-    final entry = VocabularyEntry(
+    final entry = VocabularyEntry.withSenses(
       id: now.microsecondsSinceEpoch.toString(),
       sourceText: capture.text,
-      translations:
-          result?.translations ??
+      senses:
+          result?.senses ??
           [
-            selectedPair.target == VocabularyLanguage.arabic
-                ? 'بانتظار المعنى'
-                : 'Translation pending',
+            VocabularySense.legacy(
+              translations: [
+                selectedPair.source == selectedPair.target
+                    ? capture.text
+                    : selectedPair.target == VocabularyLanguage.arabic
+                    ? 'بانتظار المعنى'
+                    : 'Translation pending',
+              ],
+              definition: selectedPair.source == selectedPair.target
+                  ? 'Saved for same-language study. Use Find all meanings for definitions and examples.'
+                  : 'Meaning not available offline yet.',
+            ),
           ],
       sourceLanguage: selectedPair.source,
       targetLanguage: selectedPair.target,
-      definition: result?.definition ?? 'Meaning not available offline yet.',
-      example: result?.example,
       source: capture.source,
       createdAt: now,
       updatedAt: now,
@@ -176,6 +344,7 @@ class VocabularyController extends ChangeNotifier {
 
   Future<void> enrichWithContext(
     VocabularyEntry entry, {
+    String? senseId,
     String? context,
   }) async {
     final service = _contextualExplanationService;
@@ -184,18 +353,34 @@ class VocabularyController extends ChangeNotifier {
         'Context explanations are not available on this device.',
       );
     }
+    final selectedSense = entry.senseById(senseId);
     _explainingEntryId = entry.id;
+    _explainingSenseId = selectedSense.id;
     notifyListeners();
     try {
-      final explanation = await service.explain(entry, context: context);
-      final now = DateTime.now();
-      final updated = entry.copyWith(
-        contextText: context?.trim(),
-        contextualExplanation: explanation.explanation,
-        contextualExample: explanation.example,
-        relatedPhrases: explanation.relatedPhrases,
-        updatedAt: now,
+      final explanation = await service.explain(
+        entry,
+        senseId: selectedSense.id,
+        context: context,
       );
+      final now = DateTime.now();
+      final updated = entry
+          .addExampleToSense(
+            selectedSense.id,
+            VocabularyExample(
+              sourceText: explanation.example,
+              translation: explanation.exampleTranslation,
+            ),
+          )
+          .copyWith(
+            contextText: context?.trim(),
+            contextualExplanation: explanation.explanation,
+            contextualExample: explanation.example,
+            contextualExampleTranslation: explanation.exampleTranslation,
+            contextualSenseId: selectedSense.id,
+            relatedPhrases: explanation.relatedPhrases,
+            updatedAt: now,
+          );
       _entries = _entries
           .map((candidate) => candidate.id == entry.id ? updated : candidate)
           .toList(growable: false);
@@ -203,13 +388,14 @@ class VocabularyController extends ChangeNotifier {
       _queueCloudUpsert(updated);
     } finally {
       _explainingEntryId = null;
+      _explainingSenseId = null;
       notifyListeners();
     }
   }
 
   String exportJson() => const JsonEncoder.withIndent('  ').convert({
     'format': 'stackit-vocabulary',
-    'version': 1,
+    'version': 2,
     'exportedAt': DateTime.now().toUtc().toIso8601String(),
     'entries': _entries.map((entry) => entry.toJson()).toList(growable: false),
   });
@@ -226,12 +412,71 @@ class VocabularyController extends ChangeNotifier {
     _reviewRemindersEnabled = enabled;
     await _platformBridge.saveReviewReminders(enabled);
     notifyListeners();
+    await _persistProfileChange(
+      (profile) => profile.copyWith(notificationsEnabled: enabled),
+    );
     return true;
   }
 
+  Future<void> updateUserProfile(UserProfile profile) async {
+    final now = DateTime.now();
+    final updated = profile.copyWith(updatedAt: now).normalized();
+    _userProfile = updated;
+    _applyProfilePreferences(updated);
+    notifyListeners();
+
+    await _platformBridge.saveUserProfile(updated, userId: _activeUserId);
+    await _platformBridge.saveInterfaceLanguage(_interfaceLanguage);
+    await _platformBridge.savePreferredTargetLanguage(_preferredTarget);
+
+    final userId = _activeUserId;
+    if (userId != null && _profileStore != null) {
+      _queueProfileWrite(_profileStore.saveProfile(userId, updated));
+    }
+  }
+
+  Future<Uint8List?> loadProfileAvatar() async {
+    final userId = _activeUserId;
+    final store = _profileAvatarStore;
+    if (userId == null ||
+        store == null ||
+        _userProfile?.avatarStoragePath != store.pathForUser(userId)) {
+      return null;
+    }
+    return store.loadAvatar(userId);
+  }
+
+  Future<void> uploadProfileAvatar(Uint8List bytes) async {
+    final userId = _activeUserId;
+    final store = _profileAvatarStore;
+    final profile = _userProfile;
+    if (userId == null || store == null || profile == null) {
+      throw const ProfileAvatarException(
+        'Sign in before adding a profile photo.',
+      );
+    }
+    final path = await store.uploadAvatar(userId, bytes);
+    await updateUserProfile(profile.copyWith(avatarStoragePath: path));
+  }
+
+  Future<void> removeProfileAvatar() async {
+    final userId = _activeUserId;
+    final store = _profileAvatarStore;
+    final profile = _userProfile;
+    if (userId == null || store == null || profile == null) return;
+    await store.deleteAvatar(userId);
+    await updateUserProfile(profile.copyWith(avatarStoragePath: null));
+  }
+
   Future<void> deleteAccountData(String userId) async {
+    if (_profileAvatarStore != null) {
+      await _profileAvatarStore.deleteAvatar(userId);
+    }
+    if (_profileStore != null) await _profileStore.deleteProfile(userId);
     if (_cloudStore != null) await _cloudStore.deleteAllEntries(userId);
+    await _platformBridge.clearUserProfile();
     _activeUserId = null;
+    _userProfile = null;
     _entries = const [];
     await _platformBridge.saveEntries(_entries);
     notifyListeners();
@@ -254,12 +499,13 @@ class VocabularyController extends ChangeNotifier {
     _queueCloudUpsert(reviewed);
   }
 
-  Future<void> syncForUser(String userId) async {
+  Future<void> syncForUser(String userId, {String? displayName}) async {
     if (_cloudStore == null || (_activeUserId == userId && _isSyncing)) return;
     _activeUserId = userId;
     _isSyncing = true;
     _cloudSyncError = null;
     notifyListeners();
+    await _syncProfileForUser(userId, displayName: displayName);
     try {
       final remote = await _cloudStore.loadEntries(userId);
       if (_activeUserId != userId) return;
@@ -286,12 +532,183 @@ class VocabularyController extends ChangeNotifier {
     }
   }
 
+  Future<void> retryCloudSync() async {
+    final userId = _activeUserId;
+    if (userId == null || _cloudStore == null || _isSyncing) return;
+    await syncForUser(userId);
+  }
+
+  Future<DictionaryResult> discoverAllMeanings(
+    String text, {
+    required LanguagePair pair,
+    DictionaryResult? offlineResult,
+  }) async {
+    final service = _meaningDiscoveryService;
+    if (service == null) {
+      throw const MeaningDiscoveryException(
+        'Meaning discovery is not configured.',
+      );
+    }
+    return service.discoverAllMeanings(
+      text,
+      pair: pair,
+      offlineResult: offlineResult,
+    );
+  }
+
+  Future<void> enrichEntryWithAllMeanings(VocabularyEntry entry) async {
+    final service = _meaningDiscoveryService;
+    if (service == null) {
+      throw const MeaningDiscoveryException(
+        'Meaning discovery is not configured.',
+      );
+    }
+    _discoveringMeaningsEntryId = entry.id;
+    notifyListeners();
+    try {
+      final result = await service.discoverAllMeanings(
+        entry.sourceText,
+        pair: entry.languagePair,
+        offlineResult: DictionaryResult.withSenses(
+          sourceText: entry.sourceText,
+          senses: entry.senses,
+          sourceLanguage: entry.sourceLanguage,
+          targetLanguage: entry.targetLanguage,
+        ),
+      );
+      final updated = entry.copyWith(
+        senses: result.senses,
+        updatedAt: DateTime.now(),
+      );
+      _entries = _entries
+          .map((candidate) => candidate.id == entry.id ? updated : candidate)
+          .toList(growable: false);
+      await _platformBridge.saveEntries(_entries);
+      _queueCloudUpsert(updated);
+    } finally {
+      _discoveringMeaningsEntryId = null;
+      notifyListeners();
+    }
+  }
+
   Future<void> clearAfterSignOut() async {
     _activeUserId = null;
     _cloudSyncError = null;
     _entries = const [];
     await _platformBridge.saveEntries(_entries);
     notifyListeners();
+  }
+
+  Future<void> _syncProfileForUser(String userId, {String? displayName}) async {
+    final store = _profileStore;
+    if (store == null) return;
+    _isProfileSyncing = true;
+    _profileSyncError = null;
+    notifyListeners();
+
+    final now = DateTime.now();
+    var local = await _platformBridge.loadUserProfile(userId: userId);
+    local ??= UserProfile.defaults(
+      now: now,
+      displayName: displayName,
+      interfaceLanguageCode: _interfaceLanguage?.code,
+      preferredTargetLanguageCode: _preferredTarget.code,
+      notificationsEnabled: _reviewRemindersEnabled,
+    );
+    _userProfile = local;
+    _applyProfilePreferences(local);
+    notifyListeners();
+
+    try {
+      final remote = await store.loadProfile(userId);
+      if (_activeUserId != userId) return;
+      var merged = remote == null
+          ? local
+          : remote.updatedAt.isAfter(local.updatedAt)
+          ? remote
+          : local.copyWith(createdAt: remote.createdAt);
+      if ((merged.displayName == null || merged.displayName!.isEmpty) &&
+          displayName != null &&
+          displayName.trim().isNotEmpty) {
+        merged = merged.copyWith(
+          displayName: displayName,
+          updatedAt: DateTime.now(),
+        );
+      }
+      _userProfile = merged;
+      _applyProfilePreferences(merged);
+      await _platformBridge.saveUserProfile(merged, userId: userId);
+      await _platformBridge.saveInterfaceLanguage(_interfaceLanguage);
+      await _platformBridge.savePreferredTargetLanguage(_preferredTarget);
+      await store.saveProfile(userId, merged);
+    } catch (error, stackTrace) {
+      debugPrint('Stackit profile sync failed: $error\n$stackTrace');
+      _reportNonFatal(error, stackTrace, operation: 'profile_sync');
+      _profileSyncError = switch (error) {
+        FirebaseException(code: 'unavailable' || 'deadline-exceeded') =>
+          'Profile is available locally and will sync when online.',
+        FirebaseException(code: 'permission-denied') =>
+          'Profile cloud access needs attention. Local settings are safe.',
+        _ => 'Profile sync paused. Local settings are safe.',
+      };
+      await _platformBridge.saveUserProfile(local, userId: userId);
+    } finally {
+      if (_activeUserId == userId) {
+        _isProfileSyncing = false;
+        notifyListeners();
+      }
+    }
+  }
+
+  void _applyProfilePreferences(UserProfile? profile) {
+    if (profile == null) return;
+    final target = VocabularyLanguage.tryFromCode(
+      profile.preferredTargetLanguageCode,
+    );
+    if (target != null && LanguagePair.routesTo(target).isNotEmpty) {
+      _preferredTarget = target;
+      if (LanguagePair.route(_lastSource, target) == null) {
+        _lastSource = LanguagePair.routesTo(target).first.source;
+      }
+      _hasChosenTargetLanguage = true;
+    }
+    _interfaceLanguage = VocabularyLanguage.tryFromCode(
+      profile.interfaceLanguageCode,
+    );
+  }
+
+  Future<void> _persistProfileChange(
+    UserProfile Function(UserProfile profile) change,
+  ) async {
+    final profile = _userProfile;
+    if (profile == null) return;
+    final updated = change(
+      profile,
+    ).copyWith(updatedAt: DateTime.now()).normalized();
+    _userProfile = updated;
+    await _platformBridge.saveUserProfile(updated, userId: _activeUserId);
+    final userId = _activeUserId;
+    if (userId != null && _profileStore != null) {
+      _queueProfileWrite(_profileStore.saveProfile(userId, updated));
+    }
+    notifyListeners();
+  }
+
+  void _queueProfileWrite(Future<void> operation) {
+    unawaited(() async {
+      try {
+        await operation;
+        if (_profileSyncError != null) {
+          _profileSyncError = null;
+          notifyListeners();
+        }
+      } catch (error, stackTrace) {
+        debugPrint('Stackit profile update failed: $error\n$stackTrace');
+        _reportNonFatal(error, stackTrace, operation: 'profile_update');
+        _profileSyncError = 'Profile sync paused. Local settings are safe.';
+        notifyListeners();
+      }
+    }());
   }
 
   void _queueCloudUpsert(VocabularyEntry entry) {
@@ -322,13 +739,24 @@ class VocabularyController extends ChangeNotifier {
 
   void _reportCloudError(Object error, StackTrace stackTrace) {
     debugPrint('Stackit cloud sync failed: $error\n$stackTrace');
+    _reportNonFatal(error, stackTrace, operation: 'vocabulary_sync');
     _cloudSyncError = switch (error) {
       FirebaseException(code: 'unavailable' || 'deadline-exceeded') =>
         'Offline. Saved locally; sync will retry.',
       FirebaseException(code: 'permission-denied') =>
-        'Cloud sync needs attention. Your local words are safe.',
+        'Cloud access was denied. Saved locally; check sign-in or App Check, then retry.',
       _ => 'Cloud sync paused. Your local words are safe.',
     };
+  }
+
+  void _reportNonFatal(
+    Object error,
+    StackTrace stackTrace, {
+    required String operation,
+  }) {
+    final reporter = _crashReporter;
+    if (reporter == null) return;
+    unawaited(reporter.recordNonFatal(error, stackTrace, operation: operation));
   }
 
   Future<void> _refreshOutdatedDictionaryEntries({
@@ -354,9 +782,7 @@ class VocabularyController extends ChangeNotifier {
       );
       refreshed.add(
         entry.copyWith(
-          translations: result?.translations,
-          definition: result?.definition,
-          example: result?.example,
+          senses: result?.senses,
           updatedAt: result == null ? entry.updatedAt : refreshedAt,
           dictionaryRevision: OfflineDictionary.contentRevision,
         ),

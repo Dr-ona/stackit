@@ -30,6 +30,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
@@ -41,10 +43,13 @@ dependencies:
   google_sign_in: ^7.2.0
   firebase_ai: ^3.14.1
   firebase_app_check: ^0.4.5+2
+  firebase_crashlytics: ^5.2.6
   flutter_local_notifications: ^22.0.1
   flutter_timezone: ^5.1.0
   share_plus: ^13.2.0
   timezone: ^0.11.0
+  firebase_storage: ^13.4.5
+  image_picker: ^1.2.3
 
 dev_dependencies:
   flutter_test:
@@ -72,7 +77,11 @@ flutter:
     - assets/dictionaries/en_ar.json
     - assets/dictionaries/freedict_en_ar.stkdict.gz
     - assets/dictionaries/freedict_ar_en.stkdict.gz
+    - assets/dictionaries/freedict_en_fr.stkdict.gz
+    - assets/dictionaries/freedict_fr_en.stkdict.gz
     - assets/licenses/freedict-eng-ara-COPYING.txt
+    - assets/licenses/freedict-eng-fra-COPYING.txt
+    - assets/licenses/freedict-fra-eng-COPYING.txt
 
   # To add assets to your application, add an assets section, like this:
   # assets:

@@ -7,14 +7,17 @@ import 'package:flutter/services.dart';
 
 import '../models/dictionary_result.dart';
 import '../models/language_pair.dart';
+import '../models/vocabulary_sense.dart';
 import 'dictionary_normalization.dart';
 
 class OfflineDictionary {
-  static const contentRevision = 3;
+  static const contentRevision = 7;
   static const _curatedPath = 'assets/dictionaries/en_ar.json';
   static const _binaryPaths = {
     'en_ar': 'assets/dictionaries/freedict_en_ar.stkdict.gz',
     'ar_en': 'assets/dictionaries/freedict_ar_en.stkdict.gz',
+    'en_fr': 'assets/dictionaries/freedict_en_fr.stkdict.gz',
+    'fr_en': 'assets/dictionaries/freedict_fr_en.stkdict.gz',
   };
 
   final Map<String, Map<String, DictionaryResult>> _curatedByPair = {};
@@ -25,6 +28,17 @@ class OfflineDictionary {
 
   int entryCountFor(LanguagePair pair) =>
       _binaryByPair[pair.id]?.recordCount ?? 0;
+
+  Future<bool> recognizesSource(
+    String selection,
+    VocabularyLanguage source,
+  ) async {
+    for (final pair in LanguagePair.supported) {
+      if (pair.source != source || !_binaryPaths.containsKey(pair.id)) continue;
+      if (await lookup(selection, pair) != null) return true;
+    }
+    return false;
+  }
 
   Future<void> load([LanguagePair pair = LanguagePair.englishToArabic]) async {
     await _loadCurated();
@@ -43,15 +57,21 @@ class OfflineDictionary {
     String selection, [
     LanguagePair pair = LanguagePair.englishToArabic,
   ]) async {
-    await load(pair);
+    await _loadCurated();
     final normalized = _normalize(selection, pair.source);
+    if (normalized.isEmpty) return null;
+    if (pair.source == pair.target) {
+      return _sameLanguageResult(selection.trim(), normalized, pair);
+    }
+    if (!_binaryPaths.containsKey(pair.id)) return null;
+    await load(pair);
     final candidates = <String>{
       normalized,
       if (pair.source == VocabularyLanguage.english)
         ...englishBaseFormCandidates(normalized),
     };
 
-    final curated = _curatedByPair[pair.id]!;
+    final curated = _curatedByPair[pair.id] ?? const {};
     final exactCurated = curated[normalized];
     if (exactCurated != null) {
       return _withTranslations(exactCurated, exactCurated.translations);
@@ -72,32 +92,101 @@ class OfflineDictionary {
     final binary = _binaryByPair[pair.id]!;
     final exactBinary = binary.lookup(normalized);
     if (exactBinary != null) {
-      return DictionaryResult(
-        sourceText: exactBinary.$1,
-        translations: exactBinary.$2.take(32).toList(growable: false),
-        sourceLanguage: pair.source,
-        targetLanguage: pair.target,
-        definition:
-            'Offline ${pair.source.label}–${pair.target.label} translation.',
-      );
+      return _binaryResult(exactBinary.$1, exactBinary.$2, pair);
     }
-    final binaryTranslations = <String>{};
+    final binaryGroups = <List<String>>[];
     String? matchedSource;
     for (final candidate in candidates.skip(1)) {
       final result = binary.lookup(candidate);
       if (result != null) {
         matchedSource ??= result.$1;
-        binaryTranslations.addAll(result.$2);
+        binaryGroups.addAll(result.$2);
       }
     }
     if (matchedSource == null) return null;
-    return DictionaryResult(
-      sourceText: matchedSource,
-      translations: binaryTranslations.take(32).toList(growable: false),
+    return _binaryResult(matchedSource, binaryGroups, pair);
+  }
+
+  DictionaryResult _sameLanguageResult(
+    String sourceText,
+    String normalized,
+    LanguagePair pair,
+  ) {
+    DictionaryResult? curated;
+    if (pair.source == VocabularyLanguage.english) {
+      final forward =
+          _curatedByPair[LanguagePair.englishToArabic.id] ?? const {};
+      curated = forward[normalized];
+      if (curated == null) {
+        for (final candidate in englishBaseFormCandidates(normalized).skip(1)) {
+          curated = forward[candidate];
+          if (curated != null) break;
+        }
+      }
+    }
+    final senses = curated?.senses
+        .map(
+          (sense) => VocabularySense(
+            id: sense.id,
+            translations: [curated!.sourceText],
+            definition: sense.definition,
+            partOfSpeech: sense.partOfSpeech,
+            examples: sense.examples,
+          ),
+        )
+        .toList(growable: false);
+    return DictionaryResult.withSenses(
+      sourceText: sourceText,
+      senses: senses == null || senses.isEmpty
+          ? [
+              VocabularySense(
+                id: VocabularySense.legacyId,
+                translations: [sourceText],
+                definition:
+                    'Same-language study entry. Use Find all meanings for definitions, synonyms, and examples.',
+              ),
+            ]
+          : senses,
       sourceLanguage: pair.source,
       targetLanguage: pair.target,
-      definition:
-          'Offline ${pair.source.label}–${pair.target.label} translation.',
+    );
+  }
+
+  DictionaryResult _binaryResult(
+    String sourceText,
+    List<List<String>> groups,
+    LanguagePair pair,
+  ) {
+    final senses = <VocabularySense>[];
+    final seen = <String>{};
+    for (final group in groups) {
+      final translations = group
+          .map((value) => value.trim())
+          .where((value) => value.isNotEmpty)
+          .toSet()
+          .take(16)
+          .toList(growable: false);
+      if (translations.isEmpty || !seen.add(translations.join('\u0001'))) {
+        continue;
+      }
+      senses.add(
+        VocabularySense(
+          id: 'sense-${senses.length + 1}',
+          translations: translations,
+          definition:
+              'Offline ${pair.source.label}–${pair.target.label} translation.',
+        ),
+      );
+      if (senses.length == 8) break;
+    }
+    if (senses.isEmpty) {
+      throw const FormatException('Dictionary record has no translations.');
+    }
+    return DictionaryResult.withSenses(
+      sourceText: sourceText,
+      senses: senses,
+      sourceLanguage: pair.source,
+      targetLanguage: pair.target,
     );
   }
 
@@ -105,15 +194,7 @@ class OfflineDictionary {
     DictionaryResult result,
     Iterable<String> translations,
   ) {
-    return DictionaryResult(
-      sourceText: result.sourceText,
-      translations: translations.take(32).toList(growable: false),
-      sourceLanguage: result.sourceLanguage,
-      targetLanguage: result.targetLanguage,
-      definition: result.definition,
-      partOfSpeech: result.partOfSpeech,
-      example: result.example,
-    );
+    return result.copyWithPrimaryTranslations(translations);
   }
 
   Future<void> _loadCurated() async {
@@ -133,7 +214,9 @@ class OfflineDictionary {
           if (normalizedAlias.isNotEmpty) forward[normalizedAlias] = result;
         }
       }
-      for (final translation in result.translations) {
+      for (final translation in result.senses.expand(
+        (sense) => sense.translations,
+      )) {
         final key = normalizeArabicTerm(translation);
         if (key.isNotEmpty) {
           reverse
@@ -160,6 +243,7 @@ class OfflineDictionary {
     return switch (language) {
       VocabularyLanguage.english => normalizeEnglishTerm(value),
       VocabularyLanguage.arabic => normalizeArabicTerm(value),
+      VocabularyLanguage.french => normalizeFrenchTerm(value),
     };
   }
 }
@@ -170,7 +254,7 @@ class _BinaryDictionary {
       throw const FormatException('Invalid Stackit dictionary header.');
     }
     version = view.getUint32(4, Endian.little);
-    if (version != 1 && version != 2) {
+    if (version != 1 && version != 2 && version != 3) {
       throw FormatException('Unsupported Stackit dictionary version: $version');
     }
     recordCount = view.getUint32(8, Endian.little);
@@ -186,7 +270,7 @@ class _BinaryDictionary {
   late final int recordCount;
   late final int dataStart;
 
-  (String, List<String>)? lookup(String target) {
+  (String, List<List<String>>)? lookup(String target) {
     var low = 0;
     var high = recordCount - 1;
     while (low <= high) {
@@ -197,12 +281,23 @@ class _BinaryDictionary {
       final comparison = key.compareTo(target);
       if (comparison == 0) {
         final encoded = utf8.decode(binary.sublist(separator + 1, bounds.$2));
-        final translations = version == 2
-            ? (jsonDecode(encoded) as List<Object?>).whereType<String>().toList(
-                growable: false,
-              )
-            : splitLegacyTranslations(encoded);
-        return (key, translations);
+        final groups = switch (version) {
+          3 =>
+            (jsonDecode(encoded) as List<Object?>)
+                .whereType<List<Object?>>()
+                .map(
+                  (group) => group.whereType<String>().toList(growable: false),
+                )
+                .where((group) => group.isNotEmpty)
+                .toList(growable: false),
+          2 => [
+            (jsonDecode(encoded) as List<Object?>).whereType<String>().toList(
+              growable: false,
+            ),
+          ],
+          _ => [splitLegacyTranslations(encoded)],
+        };
+        return (key, groups);
       }
       if (comparison < 0) {
         low = middle + 1;

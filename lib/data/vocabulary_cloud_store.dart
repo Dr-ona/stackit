@@ -3,6 +3,7 @@ import 'package:firebase_core/firebase_core.dart';
 
 import '../models/vocabulary_entry.dart';
 import '../models/language_pair.dart';
+import '../models/vocabulary_sense.dart';
 
 abstract interface class VocabularyCloudStore {
   Future<List<VocabularyEntry>> loadEntries(String userId);
@@ -86,7 +87,11 @@ class FirestoreVocabularyCloudStore implements VocabularyCloudStore {
 
   Map<String, dynamic> _toFirestore(VocabularyEntry entry) {
     return {
+      'schemaVersion': VocabularyEntry.currentSchemaVersion,
       'sourceText': entry.sourceText,
+      'senses': entry.senses
+          .map((sense) => sense.toJson())
+          .toList(growable: false),
       'translations': entry.translations,
       'sourceLanguage': entry.sourceLanguage.code,
       'targetLanguage': entry.targetLanguage.code,
@@ -95,9 +100,12 @@ class FirestoreVocabularyCloudStore implements VocabularyCloudStore {
       'updatedAt': Timestamp.fromDate(entry.effectiveUpdatedAt),
       'source': entry.source,
       'example': entry.example,
+      'exampleTranslation': entry.exampleTranslation,
       'contextText': entry.contextText,
       'contextualExplanation': entry.contextualExplanation,
       'contextualExample': entry.contextualExample,
+      'contextualExampleTranslation': entry.contextualExampleTranslation,
+      'contextualSenseId': entry.contextualSenseId,
       'relatedPhrases': entry.relatedPhrases,
       'reviewCount': entry.reviewCount,
       'intervalDays': entry.intervalDays,
@@ -120,25 +128,54 @@ class FirestoreVocabularyCloudStore implements VocabularyCloudStore {
             .toList(growable: false),
       _ => const <String>[],
     };
-    return VocabularyEntry(
+    final parsedSenses = switch (data['senses']) {
+      final List<dynamic> values =>
+        values
+            .whereType<Map>()
+            .map(
+              (value) =>
+                  VocabularySense.fromJson(value.cast<String, Object?>()),
+            )
+            .where(
+              (sense) =>
+                  sense.translations.isNotEmpty && sense.definition.isNotEmpty,
+            )
+            .toList(growable: false),
+      _ => const <VocabularySense>[],
+    };
+    return VocabularyEntry.withSenses(
       id: id,
       sourceText:
           data['sourceText'] as String? ?? data['term'] as String? ?? '',
-      translations: translations,
+      senses: parsedSenses.isNotEmpty
+          ? parsedSenses
+          : [
+              VocabularySense.legacy(
+                translations: translations.isEmpty
+                    ? const ['Translation pending']
+                    : translations,
+                definition:
+                    data['definition'] as String? ??
+                    'Meaning not available offline yet.',
+                example: data['example'] as String?,
+                exampleTranslation: data['exampleTranslation'] as String?,
+              ),
+            ],
       sourceLanguage: VocabularyLanguage.fromCode(
         data['sourceLanguage'] as String? ?? 'en',
       ),
       targetLanguage: VocabularyLanguage.fromCode(
         data['targetLanguage'] as String? ?? 'ar',
       ),
-      definition: data['definition'] as String? ?? '',
       createdAt: _date(data['createdAt']) ?? DateTime.now(),
       updatedAt: _date(data['updatedAt']),
       source: data['source'] as String?,
-      example: data['example'] as String?,
       contextText: data['contextText'] as String?,
       contextualExplanation: data['contextualExplanation'] as String?,
       contextualExample: data['contextualExample'] as String?,
+      contextualExampleTranslation:
+          data['contextualExampleTranslation'] as String?,
+      contextualSenseId: data['contextualSenseId'] as String?,
       relatedPhrases: switch (data['relatedPhrases']) {
         final List<dynamic> values => values.whereType<String>().toList(
           growable: false,
@@ -150,6 +187,10 @@ class FirestoreVocabularyCloudStore implements VocabularyCloudStore {
       nextReviewAt: _date(data['nextReviewAt']),
       lastReviewedAt: _date(data['lastReviewedAt']),
       dictionaryRevision: data['dictionaryRevision'] as int? ?? 0,
+      schemaVersion: parsedSenses.isEmpty
+          ? 1
+          : data['schemaVersion'] as int? ??
+                VocabularyEntry.currentSchemaVersion,
     );
   }
 

@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 
+import '../../l10n/app_localizations.dart';
 import '../../models/vocabulary_entry.dart';
-import 'highlighted_example_text.dart';
-import 'translation_meaning_list.dart';
+import 'example_with_translation.dart';
 import 'vocabulary_controller.dart';
+import 'vocabulary_sense_list.dart';
 
 Future<void> showVocabularyEntryDetails(
   BuildContext context, {
@@ -57,7 +58,10 @@ class _EntryDetails extends StatelessWidget {
     final sourceDirection = entry.sourceLanguage.isRtl
         ? TextDirection.rtl
         : TextDirection.ltr;
-    final isExplaining = controller.explainingEntryId == entry.id;
+    final isThin =
+        entry.senses.length == 1 ||
+        entry.senses.every((sense) => sense.examples.isEmpty);
+    final isDiscovering = controller.discoveringMeaningsEntryId == entry.id;
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
       child: Column(
@@ -94,69 +98,88 @@ class _EntryDetails extends StatelessWidget {
           ),
           const SizedBox(height: 22),
           Text(
-            entry.translations.length == 1
-                ? '1 verified ${entry.targetLanguage.label} equivalent'
-                : '${entry.translations.length} verified '
-                      '${entry.targetLanguage.label} equivalents',
+            entry.senses.length == 1
+                ? '1 verified meaning'
+                : '${entry.senses.length} verified meanings',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
               color: const Color(0xFF657069),
               fontWeight: FontWeight.w800,
             ),
           ),
           const SizedBox(height: 10),
-          TranslationMeaningList(
-            translations: entry.translations,
-            language: entry.targetLanguage,
-          ),
-          const SizedBox(height: 26),
-          _DetailSection(label: 'Definition', body: entry.definition),
-          if (entry.example != null) ...[
-            const SizedBox(height: 20),
-            _DetailSection.child(
-              label: 'Example',
-              child: HighlightedExampleText(
-                example: entry.example!,
-                term: entry.sourceText,
-                language: entry.sourceLanguage,
-                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  height: 1.5,
-                  fontStyle: FontStyle.italic,
-                ),
+          if (controller.canDiscoverMeanings && isThin) ...[
+            Text(
+              context.l10n.findAllMeaningsDescription,
+              style: const TextStyle(color: Color(0xFF657069), height: 1.4),
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: isDiscovering
+                  ? null
+                  : () => _findAllMeanings(context, entry, controller),
+              icon: isDiscovering
+                  ? const SizedBox.square(
+                      dimension: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.auto_awesome_rounded),
+              label: Text(
+                isDiscovering
+                    ? context.l10n.findingAllMeanings
+                    : context.l10n.findAllMeanings,
               ),
             ),
+            const SizedBox(height: 14),
           ],
+          VocabularySenseList(
+            senses: entry.senses,
+            sourceText: entry.sourceText,
+            sourceLanguage: entry.sourceLanguage,
+            targetLanguage: entry.targetLanguage,
+            trailingBuilder: (context, sense) {
+              final isExplaining =
+                  controller.explainingEntryId == entry.id &&
+                  controller.explainingSenseId == sense.id;
+              return IconButton(
+                tooltip: 'Explain this meaning with Gemini',
+                onPressed: controller.explainingEntryId == entry.id
+                    ? null
+                    : () => _requestContextExplanation(
+                        context,
+                        entry,
+                        controller,
+                        senseId: sense.id,
+                      ),
+                icon: isExplaining
+                    ? const SizedBox.square(
+                        dimension: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.auto_awesome_rounded),
+              );
+            },
+          ),
           if (entry.source case final String source when source.isNotEmpty) ...[
             const SizedBox(height: 20),
             _DetailSection(label: 'Captured from', body: source),
           ],
-          const SizedBox(height: 26),
-          FilledButton.icon(
-            onPressed: isExplaining
-                ? null
-                : () => _requestContextExplanation(context, entry, controller),
-            icon: isExplaining
-                ? const SizedBox.square(
-                    dimension: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.auto_awesome_rounded),
-            label: Text(
-              entry.contextualExplanation == null
-                  ? 'Explain with Gemini'
-                  : 'Refresh contextual explanation',
-            ),
-          ),
           if (entry.contextualExplanation != null) ...[
             const SizedBox(height: 24),
             _DetailSection(
-              label: 'Contextual meaning',
+              label: 'Latest contextual explanation',
               body: entry.contextualExplanation!,
             ),
             if (entry.contextualExample != null) ...[
               const SizedBox(height: 20),
-              _DetailSection(
+              _DetailSection.child(
                 label: 'New example',
-                body: entry.contextualExample!,
+                child: ExampleWithTranslation(
+                  example: entry.contextualExample!,
+                  term: entry.sourceText,
+                  sourceLanguage: entry.sourceLanguage,
+                  targetLanguage: entry.targetLanguage,
+                  translation: entry.contextualExampleTranslation,
+                ),
               ),
             ],
             if (entry.relatedPhrases.isNotEmpty) ...[
@@ -173,42 +196,62 @@ class _EntryDetails extends StatelessWidget {
   }
 }
 
-Future<void> _requestContextExplanation(
+Future<void> _findAllMeanings(
   BuildContext context,
   VocabularyEntry entry,
   VocabularyController controller,
 ) async {
-  final input = TextEditingController(text: entry.contextText ?? '');
+  try {
+    await controller.enrichEntryWithAllMeanings(entry);
+  } catch (_) {
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(context.l10n.meaningDiscoveryFailed)),
+    );
+  }
+}
+
+Future<void> _requestContextExplanation(
+  BuildContext context,
+  VocabularyEntry entry,
+  VocabularyController controller, {
+  required String senseId,
+}) async {
+  var input = entry.contextText ?? '';
   final sentence = await showDialog<String?>(
     context: context,
     builder: (dialogContext) => AlertDialog(
-      title: const Text('Explain in context'),
-      content: TextField(
-        controller: input,
+      title: Text(context.l10n.explainInContext),
+      content: TextFormField(
+        initialValue: input,
         minLines: 2,
         maxLines: 5,
         autofocus: true,
-        decoration: const InputDecoration(
-          labelText: 'Sentence or context (optional)',
-          hintText: 'Paste the sentence where you found this word.',
+        onChanged: (value) => input = value,
+        decoration: InputDecoration(
+          labelText: context.l10n.sentenceOptional,
+          hintText: context.l10n.sentenceHint,
         ),
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(dialogContext),
-          child: const Text('Cancel'),
+          child: Text(context.l10n.cancel),
         ),
         FilledButton(
-          onPressed: () => Navigator.pop(dialogContext, input.text),
-          child: const Text('Explain'),
+          onPressed: () => Navigator.pop(dialogContext, input),
+          child: Text(context.l10n.explain),
         ),
       ],
     ),
   );
-  input.dispose();
   if (sentence == null || !context.mounted) return;
   try {
-    await controller.enrichWithContext(entry, context: sentence);
+    await controller.enrichWithContext(
+      entry,
+      senseId: senseId,
+      context: sentence,
+    );
   } catch (error) {
     if (!context.mounted) return;
     ScaffoldMessenger.of(

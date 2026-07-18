@@ -11,8 +11,20 @@ const _englishArabicOutputPath =
 const _arabicEnglishOutputPath =
     'assets/dictionaries/freedict_ar_en.stkdict.gz';
 const _licenseOutputPath = 'assets/licenses/freedict-eng-ara-COPYING.txt';
+const _englishFrenchSourcePath =
+    'third_party/freedict/eng-fra-0.1.6/eng-fra/eng-fra.tei';
+const _frenchEnglishSourcePath =
+    'third_party/freedict/fra-eng-0.4.1/fra-eng/fra-eng.tei';
+const _englishFrenchOutputPath =
+    'assets/dictionaries/freedict_en_fr.stkdict.gz';
+const _frenchEnglishOutputPath =
+    'assets/dictionaries/freedict_fr_en.stkdict.gz';
+const _englishFrenchLicenseSourcePath =
+    'third_party/freedict/eng-fra-0.1.6/eng-fra/COPYING';
+const _frenchEnglishLicenseSourcePath =
+    'third_party/freedict/fra-eng-0.4.1/fra-eng/COPYING';
 const _magic = 'STKD';
-const _version = 2;
+const _version = 3;
 
 void main() {
   final source = File(_sourcePath);
@@ -23,8 +35,8 @@ void main() {
   }
 
   final xml = source.readAsStringSync();
-  final entries = <String, Set<String>>{};
-  final reverseEntries = <String, Set<String>>{};
+  final entries = <String, List<List<String>>>{};
+  final reverseEntries = <String, List<List<String>>>{};
   final entryPattern = RegExp(
     r'<entry(?:\s[^>]*)?>(.*?)</entry>',
     dotAll: true,
@@ -42,20 +54,24 @@ void main() {
     final term = normalizeEnglishTerm(_plainText(orthMatch.group(1)!));
     if (term.isEmpty) continue;
 
-    final translations = entries.putIfAbsent(term, () => <String>{});
-    for (final quote in quotePattern.allMatches(block)) {
-      final translation = _plainText(quote.group(1)!);
-      if (translation.isNotEmpty) {
-        translations.add(translation);
+    final senseGroups = _extractSenseGroups(block, quotePattern);
+    final storedGroups = entries.putIfAbsent(term, () => <List<String>>[]);
+    for (final group in senseGroups) {
+      _addUniqueGroup(storedGroups, group);
+      for (final translation in group) {
         final normalizedArabic = normalizeArabicTerm(translation);
         if (normalizedArabic.isNotEmpty) {
-          reverseEntries
-              .putIfAbsent(normalizedArabic, () => <String>{})
-              .add(term);
+          _addUniqueGroup(
+            reverseEntries.putIfAbsent(
+              normalizedArabic,
+              () => <List<String>>[],
+            ),
+            [term],
+          );
         }
       }
     }
-    if (translations.isEmpty) entries.remove(term);
+    if (storedGroups.isEmpty) entries.remove(term);
   }
 
   final englishArabic = _writeDictionary(_englishArabicOutputPath, entries);
@@ -67,14 +83,78 @@ void main() {
     ..parent.createSync(recursive: true);
   File(_licenseSourcePath).copySync(licenseOutput.path);
 
+  final englishFrenchEntries = _readTeiEntries(
+    _englishFrenchSourcePath,
+    normalizeEnglishTerm,
+  );
+  final frenchEnglishEntries = _readTeiEntries(
+    _frenchEnglishSourcePath,
+    normalizeFrenchTerm,
+  );
+  final englishFrench = _writeDictionary(
+    _englishFrenchOutputPath,
+    englishFrenchEntries,
+  );
+  final frenchEnglish = _writeDictionary(
+    _frenchEnglishOutputPath,
+    frenchEnglishEntries,
+  );
+  File(
+    _englishFrenchLicenseSourcePath,
+  ).copySync('assets/licenses/freedict-eng-fra-COPYING.txt');
+  File(
+    _frenchEnglishLicenseSourcePath,
+  ).copySync('assets/licenses/freedict-fra-eng-COPYING.txt');
+
   stdout.writeln('English → Arabic records: ${entries.length}');
   stdout.writeln('English → Arabic compressed bytes: ${englishArabic.length}');
   stdout.writeln('Arabic → English records: ${reverseEntries.length}');
   stdout.writeln('Arabic → English compressed bytes: ${arabicEnglish.length}');
   stdout.writeln('Licence: ${licenseOutput.path}');
+  stdout.writeln('English → French records: ${englishFrenchEntries.length}');
+  stdout.writeln('English → French compressed bytes: ${englishFrench.length}');
+  stdout.writeln('French → English records: ${frenchEnglishEntries.length}');
+  stdout.writeln('French → English compressed bytes: ${frenchEnglish.length}');
 }
 
-List<int> _writeDictionary(String path, Map<String, Set<String>> entries) {
+Map<String, List<List<String>>> _readTeiEntries(
+  String path,
+  String Function(String) normalizeSource,
+) {
+  final source = File(path);
+  if (!source.existsSync()) {
+    throw StateError('Missing FreeDict source: $path');
+  }
+  final xml = source.readAsStringSync();
+  final entries = <String, List<List<String>>>{};
+  final entryPattern = RegExp(
+    r'<entry(?:\s[^>]*)?>(.*?)</entry>',
+    dotAll: true,
+  );
+  final orthPattern = RegExp(r'<orth(?:\s[^>]*)?>(.*?)</orth>', dotAll: true);
+  final quotePattern = RegExp(
+    r'<quote(?:\s[^>]*)?>(.*?)</quote>',
+    dotAll: true,
+  );
+  for (final match in entryPattern.allMatches(xml)) {
+    final block = match.group(1)!;
+    final orthMatch = orthPattern.firstMatch(block);
+    if (orthMatch == null) continue;
+    final term = normalizeSource(_plainText(orthMatch.group(1)!));
+    if (term.isEmpty) continue;
+    final groups = entries.putIfAbsent(term, () => <List<String>>[]);
+    for (final group in _extractSenseGroups(block, quotePattern)) {
+      _addUniqueGroup(groups, group);
+    }
+    if (groups.isEmpty) entries.remove(term);
+  }
+  return entries;
+}
+
+List<int> _writeDictionary(
+  String path,
+  Map<String, List<List<String>>> entries,
+) {
   final sorted = entries.entries.toList()
     ..sort((a, b) => a.key.compareTo(b.key));
   final records = <Uint8List>[];
@@ -83,7 +163,7 @@ List<int> _writeDictionary(String path, Map<String, Set<String>> entries) {
 
   for (final entry in sorted) {
     final key = utf8.encode(entry.key);
-    final value = utf8.encode(jsonEncode(entry.value.toList(growable: false)));
+    final value = utf8.encode(jsonEncode(entry.value));
     final record = Uint8List(key.length + 1 + value.length)
       ..setRange(0, key.length, key)
       ..[key.length] = 0
@@ -113,6 +193,35 @@ List<int> _writeDictionary(String path, Map<String, Set<String>> entries) {
   final compressed = GZipCodec(level: 9).encode(binary);
   output.writeAsBytesSync(compressed, flush: true);
   return compressed;
+}
+
+List<List<String>> _extractSenseGroups(String block, RegExp quotePattern) {
+  final sensePattern = RegExp(
+    r'<sense(?:\s[^>]*)?>(.*?)</sense>',
+    dotAll: true,
+  );
+  final senseBlocks = sensePattern
+      .allMatches(block)
+      .map((match) => match.group(1)!)
+      .toList(growable: false);
+  final sourceBlocks = senseBlocks.isEmpty ? [block] : senseBlocks;
+  final groups = <List<String>>[];
+  for (final sourceBlock in sourceBlocks) {
+    final translations = quotePattern
+        .allMatches(sourceBlock)
+        .map((quote) => _plainText(quote.group(1)!))
+        .where((translation) => translation.isNotEmpty)
+        .toSet()
+        .toList(growable: false);
+    if (translations.isNotEmpty) _addUniqueGroup(groups, translations);
+  }
+  return groups;
+}
+
+void _addUniqueGroup(List<List<String>> groups, List<String> candidate) {
+  final signature = candidate.join('\u0001');
+  if (groups.any((group) => group.join('\u0001') == signature)) return;
+  groups.add(candidate);
 }
 
 String _plainText(String xml) {
