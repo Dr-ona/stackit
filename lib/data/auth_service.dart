@@ -14,7 +14,7 @@ class AuthService {
   Future<void> initialize() async {
     if (!kIsWeb) {
       await GoogleSignIn.instance.initialize(
-        clientId: '792898120987-q3f60egbf39gef2dcg99anqoq1acfp9d.apps.googleusercontent.com',
+        serverClientId: '792898120987-q3f60egbf39gef2dcg99anqoq1acfp9d.apps.googleusercontent.com',
       );
     }
   }
