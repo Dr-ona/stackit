@@ -239,6 +239,7 @@ class _MeaningService implements MeaningDiscoveryService {
     String text, {
     required LanguagePair pair,
     DictionaryResult? offlineResult,
+    String? context,
   }) async {
     return DictionaryResult.withSenses(
       sourceText: text,

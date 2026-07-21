@@ -54,3 +54,14 @@
 - `git diff --check` passed; the only output was Git's informational LF-to-CRLF warning for two working-tree files.
 - Full `dart analyze` produced no diagnostics before the local command timed out at two minutes.
 - Firebase CLI rule validation and deployment could not be completed in this session because CLI initialization timed out and the environment subsequently blocked the isolated retry at its tool-usage limit. The local rule change is therefore not live until it is deployed.
+
+## 2026-07-23 schema v3 — contextConsented
+
+- New nullable bool field `contextConsented` added to the vocabulary schema.
+- When `contextConsented` is `true`, `sourceAppName`, `sourceUrl`, and
+  `contextText` are synced. When `false` or absent, these three fields are
+  set to `null` in the Firestore document.
+- `hasOnlyVocabularyFields` accepts `contextConsented`.
+- `isValidVocabulary` validates it as optional bool.
+- No changes to access patterns, ownership, or query behavior.
+- All devil's-advocate properties from the v2 review remain valid.

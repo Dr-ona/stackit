@@ -88,21 +88,34 @@ class _SignedInExperienceState extends State<_SignedInExperience> {
   bool _offeredOnboarding = false;
 
   @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: widget.controller,
-      builder: (context, _) {
-        _scheduleOnboardingIfNeeded();
-        return VocabularyHome(
-          controller: widget.controller,
-          authService: widget.authService,
-        );
-      },
-    );
+  void initState() {
+    super.initState();
+    widget.controller.addListener(_onControllerChanged);
+    _checkOnboarding();
   }
 
-  void _scheduleOnboardingIfNeeded() {
-    if (_offeredOnboarding) return;
+  @override
+  void didUpdateWidget(covariant _SignedInExperience oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller != widget.controller) {
+      oldWidget.controller.removeListener(_onControllerChanged);
+      widget.controller.addListener(_onControllerChanged);
+      _checkOnboarding();
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_onControllerChanged);
+    super.dispose();
+  }
+
+  void _onControllerChanged() {
+    _checkOnboarding();
+  }
+
+  void _checkOnboarding() {
+    if (_offeredOnboarding || !mounted) return;
     final kind = profileOnboardingKind(
       profile: widget.controller.userProfile,
       controllerReady: widget.controller.isReady,
@@ -115,6 +128,14 @@ class _SignedInExperienceState extends State<_SignedInExperience> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _offerOnboarding(kind);
     });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return VocabularyHome(
+      controller: widget.controller,
+      authService: widget.authService,
+    );
   }
 
   Future<void> _offerOnboarding(ProfileOnboardingKind kind) async {

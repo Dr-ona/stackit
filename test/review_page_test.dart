@@ -35,7 +35,9 @@ void main() {
     );
 
     expect(controller.entries.single.reviewCount, 1);
-    expect(controller.entries.single.intervalDays, 3);
+    expect(controller.entries.single.intervalDays, greaterThanOrEqualTo(0));
+    expect(controller.entries.single.nextReviewAt, isNotNull);
+    expect(controller.entries.single.fsrsState, isNotEmpty);
   });
 }
 
@@ -54,5 +56,9 @@ class _MemoryPlatformBridge extends PlatformBridge {
   }
 
   @override
-  Future<void> speak(String text, VocabularyLanguage language) async {}
+  Future<void> speak(
+    String text,
+    VocabularyLanguage language, {
+    String? localeTag,
+  }) async {}
 }

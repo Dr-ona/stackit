@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../data/auth_service.dart';
+import '../../data/filter_service.dart';
 import '../../l10n/app_localizations.dart';
 import '../../models/capture_payload.dart';
 import '../../models/language_pair.dart';
@@ -12,6 +13,7 @@ import 'capture_preview_sheet.dart';
 import 'account_settings_sheet.dart';
 import 'language_pair_sheet.dart';
 import 'library_entry_tile.dart';
+import 'collection_picker_sheet.dart';
 import 'vocabulary_controller.dart';
 import 'vocabulary_entry_detail_sheet.dart';
 import 'vocabulary_sense_list.dart';
@@ -107,7 +109,7 @@ class _VocabularyHomeState extends State<VocabularyHome>
   Future<void> _showCapture(CapturePayload capture) async {
     if (!mounted) return;
     try {
-      final saved = await showModalBottomSheet<bool>(
+      final result = await showModalBottomSheet<CaptureResult>(
         context: context,
         isScrollControlled: true,
         backgroundColor: const Color(0xFFFFFCF5),
@@ -116,7 +118,7 @@ class _VocabularyHomeState extends State<VocabularyHome>
           controller: widget.controller,
         ),
       );
-      if (saved == true && mounted) {
+      if (result == CaptureResult.saved && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(context.l10n.savedForReview(capture.text))),
         );
@@ -129,6 +131,15 @@ class _VocabularyHomeState extends State<VocabularyHome>
               controller: widget.controller,
             );
           }
+        }
+      } else if (result == CaptureResult.viewExisting && mounted) {
+        final entry = widget.controller.newestEntryForText(capture.text);
+        if (entry != null && mounted) {
+          await showVocabularyEntryDetails(
+            context,
+            entry: entry,
+            controller: widget.controller,
+          );
         }
       }
     } finally {
@@ -175,6 +186,23 @@ class _VocabularyHomeState extends State<VocabularyHome>
     await _showCapture(capture);
   }
 
+  Future<void> _addFromClipboard() async {
+    final payload = await widget.controller.readClipboard();
+    if (!mounted) return;
+    if (payload == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(context.l10n.clipboardEmpty)));
+      return;
+    }
+    if (_sheetOpen || _languageSheetOpen) {
+      await widget.controller.receiveCapture(payload);
+      return;
+    }
+    _sheetOpen = true;
+    await _showCapture(payload);
+  }
+
   @override
   Widget build(BuildContext context) {
     final pages = [
@@ -183,6 +211,7 @@ class _VocabularyHomeState extends State<VocabularyHome>
         authService: widget.authService,
         onStartReview: () => setState(() => _page = 1),
         onManualAdd: _addWordManually,
+        onPasteClipboard: _addFromClipboard,
       ),
       ReviewPage(controller: widget.controller),
       _Library(controller: widget.controller),
@@ -220,12 +249,14 @@ class _Inbox extends StatelessWidget {
     required this.authService,
     required this.onStartReview,
     required this.onManualAdd,
+    required this.onPasteClipboard,
   });
 
   final VocabularyController controller;
   final AuthService authService;
   final VoidCallback onStartReview;
   final VoidCallback onManualAdd;
+  final VoidCallback onPasteClipboard;
 
   @override
   Widget build(BuildContext context) {
@@ -354,6 +385,16 @@ class _Inbox extends StatelessWidget {
             ),
           ),
         ),
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 18),
+          sliver: SliverToBoxAdapter(
+            child: FilledButton.tonalIcon(
+              onPressed: onPasteClipboard,
+              icon: const Icon(Icons.content_paste_rounded),
+              label: Text(context.l10n.pasteFromClipboard),
+            ),
+          ),
+        ),
         if (controller.isReady && inboxEntries.isNotEmpty)
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(24, 0, 24, 18),
@@ -432,6 +473,44 @@ class _EmptyInbox extends StatelessWidget {
               height: 1.5,
             ),
           ),
+          if (totalSaved == 0) ...[
+            const SizedBox(height: 20),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF0E6D3),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    context.l10n.howToCapture,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  _CaptureStep(step: '1', text: context.l10n.captureStep1),
+                  const SizedBox(height: 6),
+                  _CaptureStep(step: '2', text: context.l10n.captureStep2),
+                  const SizedBox(height: 6),
+                  _CaptureStep(step: '3', text: context.l10n.captureStep3),
+                  const SizedBox(height: 10),
+                  Text(
+                    context.l10n.captureMissingHint,
+                    style: const TextStyle(
+                      color: Color(0xFF9A5A16),
+                      fontSize: 12,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -458,7 +537,21 @@ class _WordCard extends StatelessWidget {
         ),
         child: const Icon(Icons.delete_outline_rounded, color: Colors.white),
       ),
-      onDismissed: (_) => controller.delete(entry.id),
+      onDismissed: (_) async {
+        final text = entry.sourceText;
+        await controller.delete(entry.id);
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(context.l10n.entryDeleted(text)),
+              action: SnackBarAction(
+                label: context.l10n.undo,
+                onPressed: () => controller.undoDelete(),
+              ),
+            ),
+          );
+        }
+      },
       child: Card(
         clipBehavior: Clip.antiAlias,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
@@ -530,8 +623,10 @@ class _WordCard extends StatelessWidget {
                   label: context.l10n.pronounce,
                   child: IconButton(
                     tooltip: context.l10n.pronounce,
-                    onPressed: () =>
-                        controller.speak(entry.sourceText, entry.sourceLanguage),
+                    onPressed: () => controller.speak(
+                      entry.sourceText,
+                      entry.sourceLanguage,
+                    ),
                     icon: const Icon(Icons.volume_up_outlined),
                   ),
                 ),
@@ -556,38 +651,276 @@ class _Library extends StatefulWidget {
 
 class _LibraryState extends State<_Library> {
   String query = '';
+  final Set<String> _selectedIds = {};
+  LibraryFilter _filter = const LibraryFilter();
+  final FilterService _filterService = const FilterService();
+
+  bool get _isMultiSelectMode => _selectedIds.isNotEmpty;
+
+  void _toggleSelection(String id) {
+    setState(() {
+      if (_selectedIds.contains(id)) {
+        _selectedIds.remove(id);
+      } else {
+        _selectedIds.add(id);
+      }
+    });
+  }
+
+  void _selectAll(List<VocabularyEntry> entries) {
+    setState(() {
+      if (_selectedIds.length == entries.length) {
+        _selectedIds.clear();
+      } else {
+        _selectedIds.addAll(entries.map((e) => e.id));
+      }
+    });
+  }
+
+  void _clearSelection() {
+    setState(() => _selectedIds.clear());
+  }
+
+  void _setQuickFilter({bool? favorite, EntryStatus? status}) {
+    setState(() {
+      var f = _filter.copyWith(searchQuery: query);
+      if (status != null) {
+        f = f.statuses.contains(status)
+            ? f.copyWith(statuses: [])
+            : f.copyWith(statuses: [status]);
+      }
+      if (favorite != null) {
+        f = f.copyWith(favorite: f.favorite == true ? null : true);
+      }
+      _filter = f;
+    });
+  }
+
+  void _applyFilter(LibraryFilter newFilter) {
+    setState(() => _filter = newFilter.copyWith(searchQuery: query));
+  }
+
+  List<VocabularyEntry> get _filteredEntries {
+    var entries = widget.controller.entries;
+    if (_filter.searchQuery.isEmpty && query.isNotEmpty) {
+      _filter = _filter.copyWith(searchQuery: query);
+    }
+    if (!_filter.isEmpty || query.isNotEmpty) {
+      entries = _filterService.apply(
+        entries,
+        _filter.copyWith(searchQuery: query),
+      );
+    } else {
+      entries = List.of(entries)
+        ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    }
+    return entries;
+  }
+
+  Future<void> _deleteSelected() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(context.l10n.confirmDeleteSelected),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(context.l10n.cancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(
+              context.l10n.deleteSelected,
+              style: const TextStyle(color: Colors.red),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    final count = _selectedIds.length;
+    for (final id in _selectedIds) {
+      await widget.controller.delete(id);
+    }
+    _clearSelection();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(context.l10n.selectedCount(count)),
+          action: SnackBarAction(
+            label: context.l10n.undo,
+            onPressed: () => widget.controller.undoDelete(),
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> _bulkAddToCollection() async {
+    final controller = widget.controller;
+    final entries = controller.entries
+        .where((e) => _selectedIds.contains(e.id))
+        .toList();
+    if (entries.isEmpty) return;
+    final collection = await showCollectionPicker(
+      context,
+      controller: controller,
+      entry: entries.first,
+      selectOnly: true,
+    );
+    if (collection == null || !mounted) return;
+    for (final entry in entries) {
+      await controller.addToCollection(entry, collection.id);
+    }
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.l10n.selectedCount(entries.length))),
+      );
+    }
+  }
+
+  Future<void> _bulkToggleFavorite() async {
+    for (final id in _selectedIds) {
+      final entry = widget.controller.entries.firstWhere(
+        (e) => e.id == id,
+        orElse: () => throw StateError('Entry $id not found'),
+      );
+      await widget.controller.toggleFavorite(entry);
+    }
+    _clearSelection();
+  }
+
+  void _showFilterSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => _FilterBottomSheet(
+        filter: _filter,
+        controller: widget.controller,
+        onApply: _applyFilter,
+      ),
+    );
+  }
+
+  bool get _hasActiveFilters =>
+      _filter.languages.isNotEmpty ||
+      _filter.statuses.isNotEmpty ||
+      _filter.collectionIds.isNotEmpty ||
+      _filter.tagIds.isNotEmpty ||
+      _filter.favorite == true;
 
   @override
   Widget build(BuildContext context) {
-    final normalized = query.trim().toLowerCase();
-    final matches = widget.controller.entries
-        .where(
-          (entry) =>
-              entry.sourceText.toLowerCase().contains(normalized) ||
-              entry.allTranslations.any(
-                (translation) => translation.toLowerCase().contains(normalized),
-              ),
-        )
-        .toList();
+    final matches = _filteredEntries;
+    final controller = widget.controller;
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 28, 24, 0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            context.l10n.library,
-            style: Theme.of(
-              context,
-            ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w700),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  context.l10n.library,
+                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              if (_isMultiSelectMode)
+                TextButton(
+                  onPressed: () => _selectAll(matches),
+                  child: Text(
+                    _selectedIds.length == matches.length
+                        ? context.l10n.deselectAll
+                        : context.l10n.selectAll,
+                  ),
+                ),
+              if (!_isMultiSelectMode)
+                IconButton(
+                  onPressed: _showFilterSheet,
+                  icon: Badge(
+                    isLabelVisible: _hasActiveFilters,
+                    label: Text(
+                      (_filter.languages.length +
+                              _filter.statuses.length +
+                              _filter.collectionIds.length +
+                              _filter.tagIds.length +
+                              (_filter.favorite == true ? 1 : 0))
+                          .toString(),
+                      style: const TextStyle(fontSize: 10),
+                    ),
+                    child: const Icon(Icons.tune_rounded),
+                  ),
+                  tooltip: 'Filters',
+                ),
+            ],
           ),
           const SizedBox(height: 5),
-          Text(
-            context.l10n.librarySummary(widget.controller.entries.length),
-            style: const TextStyle(color: Color(0xFF657069)),
-          ),
-          const SizedBox(height: 18),
+          if (_isMultiSelectMode)
+            Text(
+              context.l10n.selectedCount(_selectedIds.length),
+              style: const TextStyle(
+                color: Color(0xFF356859),
+                fontWeight: FontWeight.w700,
+              ),
+            )
+          else
+            Text(
+              context.l10n.librarySummary(matches.length),
+              style: const TextStyle(color: Color(0xFF657069)),
+            ),
+          const SizedBox(height: 12),
+          if (!_isMultiSelectMode) ...[
+            SizedBox(
+              height: 36,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                children: [
+                  _FilterChip(
+                    label: 'All',
+                    selected: !_hasActiveFilters,
+                    onTap: () => setState(() {
+                      _filter = const LibraryFilter();
+                      query = '';
+                    }),
+                  ),
+                  const SizedBox(width: 8),
+                  _FilterChip(
+                    label: 'Favorites',
+                    icon: Icons.favorite,
+                    selected: _filter.favorite == true,
+                    onTap: () => _setQuickFilter(favorite: true),
+                  ),
+                  const SizedBox(width: 8),
+                  _FilterChip(
+                    label: 'New',
+                    selected: _filter.statuses.contains(EntryStatus.newEntry),
+                    onTap: () => _setQuickFilter(status: EntryStatus.newEntry),
+                  ),
+                  const SizedBox(width: 8),
+                  _FilterChip(
+                    label: 'Due',
+                    selected: _filter.statuses.contains(EntryStatus.due),
+                    onTap: () => _setQuickFilter(status: EntryStatus.due),
+                  ),
+                  const SizedBox(width: 8),
+                  _FilterChip(
+                    label: 'Mastered',
+                    selected: _filter.statuses.contains(EntryStatus.mastered),
+                    onTap: () => _setQuickFilter(status: EntryStatus.mastered),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
           TextField(
-            onChanged: (value) => setState(() => query = value),
+            onChanged: (value) => setState(() {
+              query = value;
+              _filter = _filter.copyWith(searchQuery: value);
+            }),
             decoration: InputDecoration(
               hintText: context.l10n.searchHint,
               prefixIcon: const Icon(Icons.search_rounded),
@@ -605,8 +938,8 @@ class _LibraryState extends State<_Library> {
                           Container(
                             width: 72,
                             height: 72,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFE3ECE6),
+                            decoration: const BoxDecoration(
+                              color: Color(0xFFE3ECE6),
                               shape: BoxShape.circle,
                             ),
                             child: const Icon(
@@ -617,15 +950,14 @@ class _LibraryState extends State<_Library> {
                           ),
                           const SizedBox(height: 20),
                           Text(
-                            query.isEmpty
+                            query.isEmpty && !_hasActiveFilters
                                 ? context.l10n.emptyLibraryTitle
                                 : context.l10n.noMatches,
-                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w800,
-                            ),
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(fontWeight: FontWeight.w800),
                             textAlign: TextAlign.center,
                           ),
-                          if (query.isEmpty) ...[
+                          if (query.isEmpty && !_hasActiveFilters) ...[
                             const SizedBox(height: 8),
                             Text(
                               context.l10n.emptyLibraryHint,
@@ -640,16 +972,70 @@ class _LibraryState extends State<_Library> {
                       ),
                     ),
                   )
-                : ListView.separated(
-                    itemCount: matches.length,
-                    separatorBuilder: (_, _) => const Divider(height: 1),
-                    itemBuilder: (context, index) {
-                      final entry = matches[index];
-                      return LibraryEntryTile(
-                        entry: entry,
-                        controller: widget.controller,
-                      );
-                    },
+                : Column(
+                    children: [
+                      Expanded(
+                        child: ListView.separated(
+                          itemCount: matches.length,
+                          separatorBuilder: (_, _) => const Divider(height: 1),
+                          itemBuilder: (context, index) {
+                            final entry = matches[index];
+                            return LibraryEntryTile(
+                              entry: entry,
+                              controller: controller,
+                              selected: _selectedIds.contains(entry.id),
+                              onTap: _isMultiSelectMode
+                                  ? () => _toggleSelection(entry.id)
+                                  : null,
+                              onLongPress: () => _toggleSelection(entry.id),
+                            );
+                          },
+                        ),
+                      ),
+                      if (_isMultiSelectMode) ...[
+                        const Divider(height: 1),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 10,
+                          ),
+                          color: Theme.of(context).colorScheme.surface,
+                          child: SafeArea(
+                            top: false,
+                            child: Row(
+                              children: [
+                                IconButton(
+                                  tooltip: context.l10n.addToCollection,
+                                  onPressed: _bulkAddToCollection,
+                                  icon: const Icon(
+                                    Icons.collections_bookmark_outlined,
+                                  ),
+                                ),
+                                IconButton(
+                                  tooltip: context.l10n.pronounce,
+                                  onPressed: _bulkToggleFavorite,
+                                  icon: const Icon(Icons.favorite_border),
+                                ),
+                                const Spacer(),
+                                IconButton(
+                                  tooltip: context.l10n.deleteSelected,
+                                  onPressed: _deleteSelected,
+                                  icon: const Icon(
+                                    Icons.delete_outline,
+                                    color: Colors.red,
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                TextButton(
+                                  onPressed: _clearSelection,
+                                  child: Text(context.l10n.cancel),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
           ),
         ],
@@ -658,6 +1044,364 @@ class _LibraryState extends State<_Library> {
   }
 }
 
+class _FilterChip extends StatelessWidget {
+  const _FilterChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+    this.icon,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  final IconData? icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? const Color(0xFF356859) : const Color(0xFFF0F4F1),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (icon != null) ...[
+              Icon(
+                icon,
+                size: 14,
+                color: selected ? Colors.white : const Color(0xFF356859),
+              ),
+              const SizedBox(width: 4),
+            ],
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: selected ? Colors.white : const Color(0xFF356859),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FilterBottomSheet extends StatefulWidget {
+  const _FilterBottomSheet({
+    required this.filter,
+    required this.controller,
+    required this.onApply,
+  });
+
+  final LibraryFilter filter;
+  final VocabularyController controller;
+  final ValueChanged<LibraryFilter> onApply;
+
+  @override
+  State<_FilterBottomSheet> createState() => _FilterBottomSheetState();
+}
+
+class _FilterBottomSheetState extends State<_FilterBottomSheet> {
+  late LibraryFilter _current;
+
+  @override
+  void initState() {
+    super.initState();
+    _current = widget.filter;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = widget.controller;
+    final collections = controller.collections;
+    final tags = controller.tags;
+    return DraggableScrollableSheet(
+      initialChildSize: 0.6,
+      minChildSize: 0.3,
+      maxChildSize: 0.9,
+      expand: false,
+      builder: (ctx, scrollController) => Padding(
+        padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+        child: ListView(
+          controller: scrollController,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Filters',
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 20),
+
+            // Language
+            _FilterSection(
+              title: 'Language',
+              children: VocabularyLanguage.values.map((lang) {
+                final selected = _current.languages.contains(lang);
+                return FilterChip(
+                  label: Text(lang.label),
+                  selected: selected,
+                  onSelected: (val) {
+                    setState(() {
+                      final langs = List<VocabularyLanguage>.from(
+                        _current.languages,
+                      );
+                      if (val) {
+                        langs.add(lang);
+                      } else {
+                        langs.remove(lang);
+                      }
+                      _current = _current.copyWith(languages: langs);
+                    });
+                  },
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 16),
+
+            // Status
+            _FilterSection(
+              title: 'Status',
+              children: EntryStatus.values.map((status) {
+                final selected = _current.statuses.contains(status);
+                return FilterChip(
+                  label: Text(_statusLabel(status)),
+                  selected: selected,
+                  onSelected: (val) {
+                    setState(() {
+                      final statuses = List<EntryStatus>.from(
+                        _current.statuses,
+                      );
+                      if (val) {
+                        statuses.add(status);
+                      } else {
+                        statuses.remove(status);
+                      }
+                      _current = _current.copyWith(statuses: statuses);
+                    });
+                  },
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 16),
+
+            // Favorites
+            _FilterSection(
+              title: 'Favorites',
+              children: [
+                FilterChip(
+                  label: const Text('Favorites only'),
+                  selected: _current.favorite == true,
+                  onSelected: (val) {
+                    setState(
+                      () => _current = _current.copyWith(
+                        favorite: val ? true : null,
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            // Collections
+            if (collections.isNotEmpty) ...[
+              _FilterSection(
+                title: 'Collections',
+                children: collections.map((col) {
+                  final selected = _current.collectionIds.contains(col.id);
+                  return FilterChip(
+                    label: Text(col.name),
+                    selected: selected,
+                    onSelected: (val) {
+                      setState(() {
+                        final ids = List<String>.from(_current.collectionIds);
+                        if (val) {
+                          ids.add(col.id);
+                        } else {
+                          ids.remove(col.id);
+                        }
+                        _current = _current.copyWith(collectionIds: ids);
+                      });
+                    },
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 16),
+            ],
+
+            // Tags
+            if (tags.isNotEmpty) ...[
+              _FilterSection(
+                title: 'Tags',
+                children: tags.map((tag) {
+                  final selected = _current.tagIds.contains(tag.id);
+                  return FilterChip(
+                    label: Text(tag.name),
+                    selected: selected,
+                    onSelected: (val) {
+                      setState(() {
+                        final ids = List<String>.from(_current.tagIds);
+                        if (val) {
+                          ids.add(tag.id);
+                        } else {
+                          ids.remove(tag.id);
+                        }
+                        _current = _current.copyWith(tagIds: ids);
+                      });
+                    },
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 16),
+            ],
+
+            // Sort
+            _FilterSection(
+              title: 'Sort by',
+              children: SortOrder.values.map((order) {
+                final selected = _current.sortOrder == order;
+                return FilterChip(
+                  label: Text(_sortLabel(order)),
+                  selected: selected,
+                  onSelected: (val) {
+                    setState(
+                      () => _current = _current.copyWith(sortOrder: order),
+                    );
+                  },
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 24),
+
+            // Actions
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () {
+                      setState(() => _current = const LibraryFilter());
+                    },
+                    child: const Text('Clear all'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: FilledButton(
+                    onPressed: () {
+                      widget.onApply(_current);
+                      Navigator.pop(ctx);
+                    },
+                    child: const Text('Apply'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  static String _statusLabel(EntryStatus status) => switch (status) {
+    EntryStatus.newEntry => 'New',
+    EntryStatus.learning => 'Learning',
+    EntryStatus.reviewing => 'Reviewing',
+    EntryStatus.mastered => 'Mastered',
+    EntryStatus.due => 'Due',
+  };
+
+  static String _sortLabel(SortOrder order) => switch (order) {
+    SortOrder.newest => 'Newest first',
+    SortOrder.oldest => 'Oldest first',
+    SortOrder.alpha => 'A → Z',
+    SortOrder.dueFirst => 'Due first',
+    SortOrder.mostReviewed => 'Most reviewed',
+  };
+}
+
+class _FilterSection extends StatelessWidget {
+  const _FilterSection({required this.title, required this.children});
+
+  final String title;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            fontWeight: FontWeight.w700,
+            fontSize: 14,
+            color: Color(0xFF657069),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Wrap(spacing: 8, runSpacing: 8, children: children),
+      ],
+    );
+  }
+}
+
 TextDirection _textDirection(VocabularyLanguage language) {
   return language.isRtl ? TextDirection.rtl : TextDirection.ltr;
+}
+
+class _CaptureStep extends StatelessWidget {
+  const _CaptureStep({required this.step, required this.text});
+
+  final String step;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 22,
+          height: 22,
+          decoration: const BoxDecoration(
+            color: Color(0xFF356859),
+            shape: BoxShape.circle,
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            step,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(text, style: const TextStyle(fontSize: 13, height: 1.4)),
+        ),
+      ],
+    );
+  }
 }

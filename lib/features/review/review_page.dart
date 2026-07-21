@@ -4,6 +4,7 @@ import '../../models/vocabulary_entry.dart';
 import '../../l10n/app_localizations.dart';
 import '../vocabulary/vocabulary_controller.dart';
 import '../vocabulary/vocabulary_sense_list.dart';
+import 'due_reason.dart';
 import 'review_scheduler.dart';
 
 class ReviewPage extends StatefulWidget {
@@ -19,15 +20,23 @@ class _ReviewPageState extends State<ReviewPage> {
   late final List<VocabularyEntry> _session;
   int _index = 0;
   bool _revealed = false;
+  late int _sessionStartTodayReviewed;
+  late final DateTime _sessionStarted;
 
   @override
   void initState() {
     super.initState();
+    _sessionStarted = DateTime.now();
+    _sessionStartTodayReviewed = widget.controller.todayReviewedCount;
     _session = widget.controller.dueEntries();
   }
 
   VocabularyEntry? get _current =>
       _index < _session.length ? _session[_index] : null;
+
+  int get _todayReviewed => _sessionStartTodayReviewed + _index;
+
+  bool get _goalReached => _todayReviewed >= widget.controller.dailyGoal;
 
   @override
   Widget build(BuildContext context) {
@@ -40,15 +49,23 @@ class _ReviewPageState extends State<ReviewPage> {
       );
     }
     if (_current == null) {
+      final goalReached = _goalReached;
       return _ReviewMessage(
-        icon: Icons.celebration_outlined,
-        eyebrow: context.l10n.sessionComplete,
+        icon: goalReached
+            ? Icons.celebration_outlined
+            : Icons.wb_sunny_outlined,
+        eyebrow: goalReached
+            ? context.l10n.goalReached
+            : context.l10n.sessionComplete,
         title: context.l10n.wordsRevisited(_session.length),
-        body: context.l10n.enoughToday,
+        body: goalReached
+            ? '${context.l10n.dailyGoalProgress(_todayReviewed, widget.controller.dailyGoal)} ✨'
+            : context.l10n.enoughToday,
       );
     }
 
     final entry = _current!;
+    final dailyGoal = widget.controller.dailyGoal;
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(20, 24, 20, 18),
@@ -56,7 +73,9 @@ class _ReviewPageState extends State<ReviewPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _ReviewHeader(position: _index + 1, total: _session.length),
-            const SizedBox(height: 16),
+            const SizedBox(height: 8),
+            _GoalProgress(reviewed: _todayReviewed, goal: dailyGoal),
+            const SizedBox(height: 12),
             LinearProgressIndicator(
               value: _index / _session.length,
               minHeight: 7,
@@ -109,6 +128,13 @@ class _ReviewPageState extends State<ReviewPage> {
       _revealed = false;
     });
     await widget.controller.review(entry, rating);
+    if (_current == null && _session.isNotEmpty) {
+      widget.controller.logReviewSessionCompleted(
+        cardsReviewed: _session.length,
+        correctCount: _session.length, // basic review: all shown are "reviewed"
+        duration: DateTime.now().difference(_sessionStarted),
+      );
+    }
   }
 }
 
@@ -147,15 +173,66 @@ class _ReviewHeader extends StatelessWidget {
               ],
             ),
           ),
-        Text(
-          context.l10n.reviewRemaining(total - position + 1),
-          style: const TextStyle(
-            color: Color(0xFF657069),
-            fontWeight: FontWeight.w600,
+          Text(
+            context.l10n.reviewRemaining(total - position + 1),
+            style: const TextStyle(
+              color: Color(0xFF657069),
+              fontWeight: FontWeight.w600,
+            ),
           ),
-        ),
         ],
       ),
+    );
+  }
+}
+
+class _GoalProgress extends StatelessWidget {
+  const _GoalProgress({required this.reviewed, required this.goal});
+
+  final int reviewed;
+  final int goal;
+
+  @override
+  Widget build(BuildContext context) {
+    final clamped = reviewed.clamp(0, goal);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(
+              reviewed >= goal
+                  ? Icons.check_circle_rounded
+                  : Icons.track_changes_rounded,
+              size: 16,
+              color: reviewed >= goal
+                  ? const Color(0xFF356859)
+                  : const Color(0xFF9A6B20),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              context.l10n.dailyGoalProgress(reviewed, goal),
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: reviewed >= goal
+                    ? const Color(0xFF356859)
+                    : const Color(0xFF657069),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        LinearProgressIndicator(
+          value: clamped / goal,
+          minHeight: 5,
+          borderRadius: BorderRadius.circular(99),
+          backgroundColor: const Color(0xFFE3E1D9),
+          color: reviewed >= goal
+              ? const Color(0xFF356859)
+              : const Color(0xFF9A6B20),
+        ),
+      ],
     );
   }
 }
@@ -168,6 +245,7 @@ class _Prompt extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final example = entry.example;
+    final reasons = explainDue(entry, DateTime.now());
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -185,7 +263,7 @@ class _Prompt extends StatelessWidget {
         Text(
           example == null
               ? entry.sourceText
-              : '“${_hideTerm(example, entry.sourceText)}”',
+              : '"${_hideTerm(example, entry.sourceText)}"',
           textDirection: entry.sourceLanguage.isRtl
               ? TextDirection.rtl
               : TextDirection.ltr,
@@ -204,11 +282,46 @@ class _Prompt extends StatelessWidget {
           ).textTheme.bodyLarge?.copyWith(color: const Color(0xFF657069)),
         ),
         const Spacer(),
+        if (reasons.isNotEmpty) ...[
+          for (final reason in reasons)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Row(
+                children: [
+                  Icon(
+                    reason.severity == 'weak'
+                        ? Icons.warning_amber_rounded
+                        : reason.severity == 'new'
+                        ? Icons.fiber_new_rounded
+                        : Icons.info_outline,
+                    size: 14,
+                    color: reason.severity == 'weak'
+                        ? const Color(0xFFB94D48)
+                        : const Color(0xFF657069),
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      reason.label,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: reason.severity == 'weak'
+                            ? const Color(0xFFB94D48)
+                            : const Color(0xFF657069),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          const SizedBox(height: 6),
+        ],
         Row(
           children: [
             const Icon(Icons.psychology_alt_outlined, size: 20),
             const SizedBox(width: 8),
-            Text(context.l10n.recallFirst),
+            Expanded(
+              child: Text(context.l10n.recallFirst),
+            ),
           ],
         ),
       ],

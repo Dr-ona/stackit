@@ -15,6 +15,16 @@ abstract interface class AnalyticsService {
   void logMeaningExpanded();
 
   void logAiExplanationRequested();
+
+  void logMeaningReported();
+
+  void logReviewSessionCompleted({
+    required int cardsReviewed,
+    required int correctCount,
+    required Duration duration,
+  });
+
+  void logSessionOpened({Duration? sinceLastSession});
 }
 
 class FirebaseAnalyticsService implements AnalyticsService {
@@ -54,4 +64,35 @@ class FirebaseAnalyticsService implements AnalyticsService {
 
   @override
   void logAiExplanationRequested() => logEvent('ai_explanation_requested');
+
+  @override
+  void logMeaningReported() => logEvent('meaning_reported');
+
+  @override
+  void logReviewSessionCompleted({
+    required int cardsReviewed,
+    required int correctCount,
+    required Duration duration,
+  }) {
+    logEvent(
+      'review_session_completed',
+      parameters: {
+        'cards_reviewed': cardsReviewed,
+        'correct_count': correctCount,
+        'accuracy': cardsReviewed > 0 ? correctCount / cardsReviewed : 0.0,
+        'duration_ms': duration.inMilliseconds,
+      },
+    );
+  }
+
+  @override
+  void logSessionOpened({Duration? sinceLastSession}) {
+    logEvent(
+      'session_opened',
+      parameters: {
+        if (sinceLastSession != null)
+          'since_last_ms': sinceLastSession.inMilliseconds,
+      },
+    );
+  }
 }

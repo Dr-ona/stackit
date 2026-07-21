@@ -38,7 +38,7 @@ void main() {
     final bridge = _CaptureBridge();
     final controller = VocabularyController(_Dictionary(), bridge);
     await controller.initialize();
-    bool? saved;
+    CaptureResult? saved;
 
     await tester.pumpWidget(
       MaterialApp(
@@ -47,7 +47,7 @@ void main() {
             body: TextButton(
               onPressed: () {
                 unawaited(
-                  showModalBottomSheet<bool>(
+                  showModalBottomSheet<CaptureResult>(
                     context: context,
                     builder: (_) => CapturePreviewSheet(
                       capture: const CapturePayload(text: 'elusive'),
@@ -73,7 +73,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
 
-    expect(saved, isTrue);
+    expect(saved, CaptureResult.saved);
     expect(controller.entries.single.sourceText, 'elusive');
     expect(tester.takeException(), isNull);
   });

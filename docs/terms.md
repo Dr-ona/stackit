@@ -1,12 +1,23 @@
 # Terms of Service for Stackit
 
-**Last updated:** July 18, 2026
+**Last updated:** July 20, 2026
 
 By downloading, installing, or using Stackit ("the app"), you agree to these terms.
 
 ## Description of service
 
 Stackit is a vocabulary collector that lets you capture words from other apps, look up translations using offline dictionaries and AI, and review them with spaced repetition. The app works offline for core features. Cloud sync and AI features require an internet connection and a free account.
+
+### Capture
+
+When you highlight text and choose "Understand with Stackit", the app receives the selected word or phrase from the source app. Depending on your Android version and the source app, Stackit may also receive:
+
+- The surrounding sentence or paragraph for context
+- The name of the source app or calling package
+- A URL if the shared text contains one
+- A capture timestamp
+
+You can also paste text from your clipboard directly into Stackit. Clipboard contents are read only when you explicitly tap "Paste from clipboard" and are never read automatically.
 
 ## Your account
 
@@ -32,9 +43,11 @@ You agree not to:
 
 ## AI features
 
-- AI-powered translations and explanations are provided by Google Gemini.
-- AI requests are only sent when you explicitly request them.
-- We do not control the accuracy of AI-generated translations. Use your judgment.
+- AI-powered translations, meaning discovery, contextual explanations, and example generation are provided by Google Gemini through Firebase AI Logic.
+- AI requests are only sent when you explicitly request them (e.g., "Find all meanings", "Explain in context").
+- When you request "Find all meanings", the word and language pair are sent to generate IPA, transliteration, gender, inflections, and additional senses. The original sentence may optionally be included to rank senses by relevance.
+- When you save a sense lacking examples, a bilingual example pair may be generated automatically via AI.
+- We do not control the accuracy of AI-generated content. Use your judgment.
 - AI features are optional and can be disabled in your profile settings.
 
 ## Offline dictionaries

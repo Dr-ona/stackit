@@ -7,21 +7,29 @@ import 'package:flutter/foundation.dart';
 
 import '../../data/offline_dictionary.dart';
 import '../../data/analytics_service.dart';
+import '../../data/library_service.dart';
 import '../../data/platform_bridge.dart';
 import '../../l10n/app_localizations.dart';
 import '../../data/profile_avatar_store.dart';
 import '../../data/crash_reporter.dart';
 import '../../data/contextual_explanation_provider.dart';
+import '../../data/example_enrichment_provider.dart';
 import '../../data/meaning_discovery_provider.dart';
 import '../../data/review_notification_service.dart';
 import '../../data/user_profile_cloud_store.dart';
 import '../../data/vocabulary_cloud_store.dart';
+import '../../data/local_dictionary_cache.dart';
+import '../../data/gemini_dictionary_service.dart';
+import '../../data/dictionary_pre_cache_service.dart';
 import '../../models/capture_payload.dart';
+import '../../models/collection.dart';
 import '../../models/dictionary_result.dart';
 import '../../models/language_pair.dart';
+import '../../models/tag.dart';
 import '../../models/user_profile.dart';
 import '../../models/vocabulary_entry.dart';
 import '../../models/vocabulary_sense.dart';
+import '../review/fsrs_scheduler.dart';
 import '../review/review_scheduler.dart';
 
 class VocabularyController extends ChangeNotifier {
@@ -36,6 +44,10 @@ class VocabularyController extends ChangeNotifier {
     this._profileAvatarStore,
     this._crashReporter,
     this._analyticsService,
+    this._exampleEnrichmentService,
+    this._localCache,
+    this._geminiDictionaryService,
+    this._preCacheService,
   ]);
 
   final OfflineDictionary _dictionary;
@@ -48,9 +60,15 @@ class VocabularyController extends ChangeNotifier {
   final ProfileAvatarStore? _profileAvatarStore;
   final CrashReporter? _crashReporter;
   final AnalyticsService? _analyticsService;
-  final ReviewScheduler _reviewScheduler = const ReviewScheduler();
+  final ExampleEnrichmentService? _exampleEnrichmentService;
+  final LocalDictionaryCache? _localCache;
+  final GeminiDictionaryService? _geminiDictionaryService;
+  final DictionaryPreCacheService? _preCacheService;
+  final FsrsScheduler _reviewScheduler = FsrsScheduler();
 
   List<VocabularyEntry> _entries = const [];
+  List<Collection> _collections = const [];
+  List<Tag> _tags = const [];
   CapturePayload? _pendingCapture;
   bool _isReady = false;
   bool _isSyncing = false;
@@ -68,8 +86,12 @@ class VocabularyController extends ChangeNotifier {
   String? _explainingSenseId;
   String? _discoveringMeaningsEntryId;
   DateTime? _lastCloudSyncTime;
+  int _lastSyncEntryCount = 0;
+  VocabularyEntry? _lastDeletedEntry;
 
   List<VocabularyEntry> get entries => List.unmodifiable(_entries);
+  List<Collection> get collections => List.unmodifiable(_collections);
+  List<Tag> get tags => List.unmodifiable(_tags);
   List<VocabularyEntry> get inboxEntries =>
       List.unmodifiable(_entries.where((entry) => entry.reviewCount == 0));
   CapturePayload? get pendingCapture => _pendingCapture;
@@ -95,6 +117,8 @@ class VocabularyController extends ChangeNotifier {
   String? get explainingSenseId => _explainingSenseId;
   String? get discoveringMeaningsEntryId => _discoveringMeaningsEntryId;
   DateTime? get lastCloudSyncTime => _lastCloudSyncTime;
+  int get lastSyncEntryCount => _lastSyncEntryCount;
+  bool get hasDeletedEntry => _lastDeletedEntry != null;
   ui.Locale get _locale => ui.PlatformDispatcher.instance.locale;
   int get reviewedCount =>
       _entries.where((entry) => entry.reviewCount > 0).length;
@@ -103,7 +127,74 @@ class VocabularyController extends ChangeNotifier {
       .length;
   int get dueCount => dueEntries(limit: _entries.length).length;
 
-  List<VocabularyEntry> dueEntries({DateTime? now, int limit = 5}) {
+  int get streakCount => computeStreak(_entries);
+  double get estimatedRetention =>
+      computeRetention(reviewedCount, masteredCount);
+  int get todayReviewedCount => computeTodayReviewed(_entries);
+  int get dailyGoal => _userProfile?.dailyReviewGoal ?? 10;
+
+  void logReviewSessionCompleted({
+    required int cardsReviewed,
+    required int correctCount,
+    required Duration duration,
+  }) {
+    _analyticsService?.logReviewSessionCompleted(
+      cardsReviewed: cardsReviewed,
+      correctCount: correctCount,
+      duration: duration,
+    );
+  }
+
+  void logSessionOpened({Duration? sinceLastSession}) {
+    _analyticsService?.logSessionOpened(sinceLastSession: sinceLastSession);
+  }
+
+  static DateTime _dateOnly(DateTime dt) => DateTime(dt.year, dt.month, dt.day);
+
+  static int computeStreak(List<VocabularyEntry> entries) {
+    final reviewDates =
+        entries
+            .where((entry) => entry.lastReviewedAt != null)
+            .map((entry) => _dateOnly(entry.lastReviewedAt!.toLocal()))
+            .toSet()
+            .toList()
+          ..sort((a, b) => b.compareTo(a));
+    if (reviewDates.isEmpty) return 0;
+    final today = _dateOnly(DateTime.now());
+    final yesterday = today.subtract(const Duration(days: 1));
+    if (!reviewDates.contains(today) && !reviewDates.contains(yesterday)) {
+      return 0;
+    }
+    var streak = 0;
+    var expected = reviewDates.contains(today) ? today : yesterday;
+    for (final date in reviewDates) {
+      if (date == expected) {
+        streak++;
+        expected = expected.subtract(const Duration(days: 1));
+      } else if (date.isBefore(expected)) {
+        break;
+      }
+    }
+    return streak;
+  }
+
+  static double computeRetention(int reviewed, int mastered) {
+    if (reviewed == 0) return 0;
+    return mastered / reviewed;
+  }
+
+  static int computeTodayReviewed(
+    List<VocabularyEntry> entries, {
+    DateTime? now,
+  }) {
+    final today = _dateOnly(now ?? DateTime.now());
+    return entries.where((entry) {
+      if (entry.lastReviewedAt == null) return false;
+      return _dateOnly(entry.lastReviewedAt!.toLocal()) == today;
+    }).length;
+  }
+
+  List<VocabularyEntry> dueEntries({DateTime? now, int? limit}) {
     final reviewTime = now ?? DateTime.now();
     final due = _entries.where((entry) => entry.isDue(reviewTime)).toList()
       ..sort((a, b) {
@@ -111,7 +202,8 @@ class VocabularyController extends ChangeNotifier {
         final bDue = b.nextReviewAt ?? b.createdAt;
         return aDue.compareTo(bDue);
       });
-    return due.take(limit).toList(growable: false);
+    final maxItems = limit ?? dailyGoal;
+    return due.take(maxItems).toList(growable: false);
   }
 
   Future<void> initialize() async {
@@ -143,9 +235,32 @@ class VocabularyController extends ChangeNotifier {
     _entries = await _platformBridge.loadEntries();
     if (_entries.any((entry) => entry.needsSchemaMigration)) {
       _entries = _entries
-          .map((entry) => entry.copyWith(senses: entry.senses))
+          .map((entry) {
+            if (!entry.needsSchemaMigration) return entry;
+            return entry.copyWith(
+              senses: entry.senses,
+              fsrsStability:
+                  entry.fsrsStability ??
+                  (entry.intervalDays > 0
+                      ? entry.intervalDays.toDouble()
+                      : null),
+              fsrsDifficulty:
+                  entry.fsrsDifficulty ?? (entry.reviewCount > 0 ? 5.0 : null),
+              fsrsState: entry.fsrsState == 'new'
+                  ? VocabularyEntry.migrateFsrsState(
+                      entry.reviewCount,
+                      entry.intervalDays,
+                    )
+                  : entry.fsrsState,
+            );
+          })
           .toList(growable: false);
       await _platformBridge.saveEntries(_entries);
+    }
+    final libraryJson = await _platformBridge.loadLibrary();
+    if (libraryJson != null) {
+      _collections = const LibraryService().collectionsFromJson(libraryJson);
+      _tags = const LibraryService().tagsFromJson(libraryJson);
     }
     _reviewRemindersEnabled = await _platformBridge.loadReviewReminders();
     _userProfile = await _platformBridge.loadUserProfile();
@@ -158,6 +273,12 @@ class VocabularyController extends ChangeNotifier {
     notifyListeners();
 
     await pollPlatformCapture();
+    _startPreCache();
+  }
+
+  void _startPreCache() {
+    if (_preCacheService == null || _preCacheService.isRunning) return;
+    _preCacheService.preCache(languagePair).catchError((_) {});
   }
 
   Future<void> pollPlatformCapture() async {
@@ -188,6 +309,7 @@ class VocabularyController extends ChangeNotifier {
       (profile) =>
           profile.copyWith(preferredTargetLanguageCode: pair.target.code),
     );
+    _startPreCache();
   }
 
   Future<void> setPreferredTargetLanguage(VocabularyLanguage language) async {
@@ -218,8 +340,32 @@ class VocabularyController extends ChangeNotifier {
     );
   }
 
-  Future<DictionaryResult?> lookup(String text, {LanguagePair? pair}) {
-    return _dictionary.lookup(text, pair ?? languagePair);
+  Future<DictionaryResult?> lookup(String text, {LanguagePair? pair}) async {
+    final targetPair = pair ?? languagePair;
+
+    // 1. Offline dictionary
+    final offlineResult = await _dictionary.lookup(text, targetPair);
+    if (offlineResult != null) return offlineResult;
+
+    // 2. Local cache (Gemini translations persisted to disk)
+    if (_localCache != null) {
+      final cached = await _localCache.lookup(text, targetPair);
+      if (cached != null) return cached;
+    }
+
+    // 3. Gemini API (online)
+    if (_geminiDictionaryService != null && _localCache != null) {
+      final geminiResult = await _geminiDictionaryService.lookup(
+        text,
+        targetPair,
+      );
+      if (geminiResult != null) {
+        await _localCache.store(geminiResult, targetPair);
+        return geminiResult;
+      }
+    }
+
+    return null;
   }
 
   LanguagePair resolveLanguagePair(String text) {
@@ -307,6 +453,7 @@ class VocabularyController extends ChangeNotifier {
               ));
     if (contains(capture.text, pair: selectedPair)) return;
     final now = DateTime.now();
+    final meaningSource = result != null ? 'offline' : 'manual';
     final entry = VocabularyEntry.withSenses(
       id: now.microsecondsSinceEpoch.toString(),
       sourceText: capture.text,
@@ -327,9 +474,13 @@ class VocabularyController extends ChangeNotifier {
       sourceLanguage: selectedPair.source,
       targetLanguage: selectedPair.target,
       source: capture.source,
+      contextText: capture.context?.trim(),
+      sourceAppName: capture.sourceAppName,
+      sourceUrl: capture.sourceUrl,
       createdAt: now,
       updatedAt: now,
       dictionaryRevision: OfflineDictionary.contentRevision,
+      meaningSource: meaningSource,
     );
     _entries = [entry, ..._entries];
     notifyListeners();
@@ -338,9 +489,43 @@ class VocabularyController extends ChangeNotifier {
     if (_entries.length == 1) {
       _analyticsService?.logFirstSave();
     }
+    _enrichExamplesAsync(entry, selectedPair);
+  }
+
+  Future<void> _enrichExamplesAsync(
+    VocabularyEntry entry,
+    LanguagePair pair,
+  ) async {
+    final service = _exampleEnrichmentService;
+    if (service == null) return;
+    final hasEmptySenses = entry.senses.any((s) => s.examples.isEmpty);
+    if (!hasEmptySenses) return;
+    try {
+      final enrichedSenses = await service.enrichExamples(
+        sourceText: entry.sourceText,
+        senses: entry.senses,
+        pair: pair,
+      );
+      final idx = _entries.indexWhere((e) => e.id == entry.id);
+      if (idx == -1) return;
+      _entries = [
+        ..._entries.sublist(0, idx),
+        entry.copyWith(senses: enrichedSenses, updatedAt: DateTime.now()),
+        ..._entries.sublist(idx + 1),
+      ];
+      notifyListeners();
+      await _platformBridge.saveEntries(_entries);
+    } catch (_) {
+      // Enrichment is best-effort; don't block or crash.
+    }
   }
 
   Future<void> delete(String id) async {
+    final entry = _entries.firstWhere(
+      (e) => e.id == id,
+      orElse: () => throw StateError('Entry $id not found'),
+    );
+    _lastDeletedEntry = entry;
     _entries = _entries.where((entry) => entry.id != id).toList();
     notifyListeners();
     await _platformBridge.saveEntries(_entries);
@@ -348,6 +533,16 @@ class VocabularyController extends ChangeNotifier {
     if (userId != null && _cloudStore != null) {
       _queueCloudWrite(_cloudStore.deleteEntry(userId, id));
     }
+  }
+
+  Future<void> undoDelete() async {
+    final entry = _lastDeletedEntry;
+    if (entry == null) return;
+    _lastDeletedEntry = null;
+    _entries = [entry, ..._entries];
+    notifyListeners();
+    await _platformBridge.saveEntries(_entries);
+    _queueCloudUpsert(entry);
   }
 
   Future<void> enrichWithContext(
@@ -388,6 +583,7 @@ class VocabularyController extends ChangeNotifier {
             contextualExampleTranslation: explanation.exampleTranslation,
             contextualSenseId: selectedSense.id,
             relatedPhrases: explanation.relatedPhrases,
+            contextConsented: context != null && context.trim().isNotEmpty,
             updatedAt: now,
           );
       _entries = _entries
@@ -400,6 +596,32 @@ class VocabularyController extends ChangeNotifier {
       _explainingSenseId = null;
       notifyListeners();
     }
+  }
+
+  void reportMeaning(VocabularyEntry entry, String senseId, String reason) {
+    _analyticsService?.logMeaningReported();
+    _reportNonFatal(
+      Exception('Meaning report: ${entry.sourceText} / $senseId: $reason'),
+      StackTrace.current,
+      operation: 'meaning_report',
+    );
+  }
+
+  void setContextConsent(VocabularyEntry entry, bool consented) {
+    final idx = _entries.indexWhere((e) => e.id == entry.id);
+    if (idx == -1) return;
+    final updated = entry.copyWith(
+      contextConsented: consented,
+      updatedAt: DateTime.now(),
+    );
+    _entries = [
+      ..._entries.sublist(0, idx),
+      updated,
+      ..._entries.sublist(idx + 1),
+    ];
+    notifyListeners();
+    _platformBridge.saveEntries(_entries);
+    _queueCloudUpsert(updated);
   }
 
   String exportJson() => const JsonEncoder.withIndent('  ').convert({
@@ -460,9 +682,7 @@ class VocabularyController extends ChangeNotifier {
     final store = _profileAvatarStore;
     final profile = _userProfile;
     if (userId == null || store == null || profile == null) {
-      throw ProfileAvatarException(
-        AppLocalizations.signInFirst(_locale),
-      );
+      throw ProfileAvatarException(AppLocalizations.signInFirst(_locale));
     }
     final path = await store.uploadAvatar(userId, bytes);
     await updateUserProfile(profile.copyWith(avatarStoragePath: path));
@@ -535,6 +755,7 @@ class VocabularyController extends ChangeNotifier {
       await _platformBridge.saveEntries(_entries);
       await _cloudStore.upsertEntries(userId, _entries);
       _lastCloudSyncTime = DateTime.now();
+      _lastSyncEntryCount = merged.length;
     } catch (error, stackTrace) {
       _reportCloudError(error, stackTrace);
     } finally {
@@ -555,6 +776,7 @@ class VocabularyController extends ChangeNotifier {
     String text, {
     required LanguagePair pair,
     DictionaryResult? offlineResult,
+    String? context,
   }) async {
     final service = _meaningDiscoveryService;
     if (service == null) {
@@ -566,6 +788,7 @@ class VocabularyController extends ChangeNotifier {
       text,
       pair: pair,
       offlineResult: offlineResult,
+      context: context,
     );
   }
 
@@ -589,10 +812,12 @@ class VocabularyController extends ChangeNotifier {
           sourceLanguage: entry.sourceLanguage,
           targetLanguage: entry.targetLanguage,
         ),
+        context: entry.contextText,
       );
       final updated = entry.copyWith(
         senses: result.senses,
         updatedAt: DateTime.now(),
+        meaningSource: 'gemini',
       );
       _entries = _entries
           .map((candidate) => candidate.id == entry.id ? updated : candidate)
@@ -749,7 +974,91 @@ class VocabularyController extends ChangeNotifier {
   }
 
   Future<void> speak(String text, VocabularyLanguage language) {
-    return _platformBridge.speak(text, language);
+    final accent = _userProfile?.learningLanguages
+        .where((l) => l.languageCode == language.code)
+        .map((l) => l.pronunciationLocale)
+        .firstOrNull;
+    return _platformBridge.speak(text, language, localeTag: accent);
+  }
+
+  Future<CapturePayload?> readClipboard() {
+    return _platformBridge.readClipboard();
+  }
+
+  static const _libraryService = LibraryService();
+
+  Future<Collection> createCollection(
+    String name, {
+    String description = '',
+  }) async {
+    final collection = _libraryService.createCollection(
+      name,
+      description: description,
+    );
+    _collections = [..._collections, collection];
+    notifyListeners();
+    await _saveLibrary();
+    return collection;
+  }
+
+  Future<void> deleteCollection(String collectionId) async {
+    _entries = _entries
+        .map((e) {
+          if (!e.collectionIds.contains(collectionId)) return e;
+          return _libraryService.removeFromCollection(e, collectionId);
+        })
+        .toList(growable: false);
+    _collections = _collections.where((c) => c.id != collectionId).toList();
+    notifyListeners();
+    await _saveLibrary();
+    await _platformBridge.saveEntries(_entries);
+  }
+
+  Future<void> addToCollection(
+    VocabularyEntry entry,
+    String collectionId,
+  ) async {
+    _entries = _entries
+        .map((e) {
+          if (e.id != entry.id) return e;
+          return _libraryService.addToCollection(e, collectionId);
+        })
+        .toList(growable: false);
+    notifyListeners();
+    await _platformBridge.saveEntries(_entries);
+  }
+
+  Future<void> removeFromCollection(
+    VocabularyEntry entry,
+    String collectionId,
+  ) async {
+    _entries = _entries
+        .map((e) {
+          if (e.id != entry.id) return e;
+          return _libraryService.removeFromCollection(e, collectionId);
+        })
+        .toList(growable: false);
+    notifyListeners();
+    await _platformBridge.saveEntries(_entries);
+  }
+
+  Future<void> toggleFavorite(VocabularyEntry entry) async {
+    _entries = _entries
+        .map((e) {
+          if (e.id != entry.id) return e;
+          return _libraryService.toggleFavorite(e);
+        })
+        .toList(growable: false);
+    notifyListeners();
+    await _platformBridge.saveEntries(_entries);
+  }
+
+  Future<void> _saveLibrary() async {
+    final data = _libraryService.encodeLibrary(
+      collections: _collections,
+      tags: _tags,
+    );
+    await _platformBridge.saveLibrary(data);
   }
 
   void _reportCloudError(Object error, StackTrace stackTrace) {

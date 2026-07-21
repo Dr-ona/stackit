@@ -121,7 +121,9 @@ class _SignInPageState extends State<SignInPage> {
                     const SizedBox(height: 14),
                     Text(
                       _error!,
-                      style: TextStyle(color: Theme.of(context).colorScheme.error),
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
                     ),
                   ],
                   const SizedBox(height: 18),

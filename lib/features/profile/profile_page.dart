@@ -128,6 +128,8 @@ class _ProfilePageState extends State<ProfilePage> {
           LayoutBuilder(
             builder: (context, constraints) {
               final width = (constraints.maxWidth - 10) / 2;
+              final retention = (widget.controller.estimatedRetention * 100)
+                  .round();
               return Wrap(
                 spacing: 10,
                 runSpacing: 10,
@@ -155,6 +157,21 @@ class _ProfilePageState extends State<ProfilePage> {
                     width,
                     widget.controller.dueCount,
                     l10n.dueNow,
+                  ),
+                  _metric(
+                    context,
+                    width,
+                    widget.controller.streakCount,
+                    widget.controller.streakCount > 0
+                        ? l10n.streakDays(widget.controller.streakCount)
+                        : l10n.noStreak,
+                  ),
+                  _metric(
+                    context,
+                    width,
+                    retention,
+                    l10n.retention,
+                    suffix: '%',
                   ),
                 ],
               );
@@ -199,16 +216,22 @@ class _ProfilePageState extends State<ProfilePage> {
                     ],
                     onChanged: _busy
                         ? null
-                        : (value) =>
-                              setState(() => _nativeLanguageCode = value ?? _none),
+                        : (value) => setState(
+                            () => _nativeLanguageCode = value ?? _none,
+                          ),
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
                     initialValue: _interfaceLanguageCode,
                     isExpanded: true,
-                    decoration: InputDecoration(labelText: l10n.interfaceLanguage),
+                    decoration: InputDecoration(
+                      labelText: l10n.interfaceLanguage,
+                    ),
                     items: [
-                      DropdownMenuItem(value: _system, child: Text(l10n.systemDefault)),
+                      DropdownMenuItem(
+                        value: _system,
+                        child: Text(l10n.systemDefault),
+                      ),
                       for (final language in VocabularyLanguage.values)
                         DropdownMenuItem(
                           value: language.code,
@@ -217,14 +240,17 @@ class _ProfilePageState extends State<ProfilePage> {
                     ],
                     onChanged: _busy
                         ? null
-                        : (value) =>
-                              setState(() => _interfaceLanguageCode = value ?? _system),
+                        : (value) => setState(
+                            () => _interfaceLanguageCode = value ?? _system,
+                          ),
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
                     initialValue: _preferredTargetLanguageCode,
                     isExpanded: true,
-                    decoration: InputDecoration(labelText: l10n.translationPreference),
+                    decoration: InputDecoration(
+                      labelText: l10n.translationPreference,
+                    ),
                     items: [
                       for (final language in LanguagePair.availableTargets)
                         DropdownMenuItem(
@@ -236,7 +262,9 @@ class _ProfilePageState extends State<ProfilePage> {
                         ? null
                         : (value) {
                             if (value != null) {
-                              setState(() => _preferredTargetLanguageCode = value);
+                              setState(
+                                () => _preferredTargetLanguageCode = value,
+                              );
                             }
                           },
                   ),
@@ -291,12 +319,16 @@ class _ProfilePageState extends State<ProfilePage> {
                   DropdownButtonFormField<ReviewIntensity>(
                     initialValue: _reviewIntensity,
                     isExpanded: true,
-                    decoration: InputDecoration(labelText: l10n.reviewIntensity),
+                    decoration: InputDecoration(
+                      labelText: l10n.reviewIntensity,
+                    ),
                     items: [
                       for (final intensity in ReviewIntensity.values)
                         DropdownMenuItem(
                           value: intensity,
-                          child: Text(l10n.intensityLabel(intensity.storageValue)),
+                          child: Text(
+                            l10n.intensityLabel(intensity.storageValue),
+                          ),
                         ),
                     ],
                     onChanged: _busy
@@ -352,7 +384,8 @@ class _ProfilePageState extends State<ProfilePage> {
                   value: _notificationsEnabled,
                   onChanged: _busy
                       ? null
-                      : (value) => setState(() => _notificationsEnabled = value),
+                      : (value) =>
+                            setState(() => _notificationsEnabled = value),
                 ),
                 const Divider(height: 1),
                 SwitchListTile(
@@ -630,39 +663,94 @@ class _ProfilePageState extends State<ProfilePage> {
           if (preference != null)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
-              child: DropdownButtonFormField<LanguageProficiency>(
-                key: ValueKey(
-                  '${language.code}-${preference.proficiency.name}',
-                ),
-                initialValue: preference.proficiency,
-                isExpanded: true,
-                decoration: InputDecoration(
-                  labelText: context.l10n.proficiency,
-                ),
-                items: [
-                  for (final level in LanguageProficiency.values)
-                    DropdownMenuItem(
-                      value: level,
-                      child: Text(
-                        context.l10n.proficiencyLabel(level.storageValue),
-                      ),
+              child: Column(
+                children: [
+                  DropdownButtonFormField<LanguageProficiency>(
+                    key: ValueKey(
+                      '${language.code}-${preference.proficiency.name}',
                     ),
+                    initialValue: preference.proficiency,
+                    isExpanded: true,
+                    decoration: InputDecoration(
+                      labelText: context.l10n.proficiency,
+                    ),
+                    items: [
+                      for (final level in LanguageProficiency.values)
+                        DropdownMenuItem(
+                          value: level,
+                          child: Text(
+                            context.l10n.proficiencyLabel(level.storageValue),
+                          ),
+                        ),
+                    ],
+                    onChanged: _busy
+                        ? null
+                        : (level) {
+                            if (level != null) {
+                              setState(() {
+                                _learningLanguages[language.code] = preference
+                                    .copyWith(proficiency: level);
+                              });
+                            }
+                          },
+                  ),
+                  const SizedBox(height: 10),
+                  DropdownButtonFormField<String>(
+                    key: ValueKey(
+                      'accent-${language.code}-${preference.pronunciationLocale ?? 'default'}',
+                    ),
+                    initialValue: preference.pronunciationLocale,
+                    isExpanded: true,
+                    decoration: InputDecoration(labelText: context.l10n.accent),
+                    items: [
+                      DropdownMenuItem(
+                        value: null,
+                        child: Text(context.l10n.defaultAccent),
+                      ),
+                      for (final accent in _accentsForLanguage(language.code))
+                        DropdownMenuItem(
+                          value: accent.$1,
+                          child: Text(accent.$2),
+                        ),
+                    ],
+                    onChanged: _busy
+                        ? null
+                        : (locale) {
+                            setState(() {
+                              _learningLanguages[language.code] = preference
+                                  .copyWith(pronunciationLocale: locale);
+                            });
+                          },
+                  ),
                 ],
-                onChanged: _busy
-                    ? null
-                    : (level) {
-                        if (level != null) {
-                          setState(() {
-                            _learningLanguages[language.code] = preference
-                                .copyWith(proficiency: level);
-                          });
-                        }
-                      },
               ),
             ),
         ],
       ),
     );
+  }
+
+  static List<(String, String)> _accentsForLanguage(String code) {
+    return switch (code) {
+      'en' => [
+        ('en-US', 'US English'),
+        ('en-GB', 'British English'),
+        ('en-AU', 'Australian English'),
+        ('en-IN', 'Indian English'),
+      ],
+      'ar' => [
+        ('ar-SA', 'العربية (السعودية)'),
+        ('ar-EG', 'العربية (مصر)'),
+        ('ar-MA', 'العربية (المغرب)'),
+        ('ar-AE', 'العربية (الإمارات)'),
+      ],
+      'fr' => [
+        ('fr-FR', 'Francais (France)'),
+        ('fr-CA', 'Francais (Canada)'),
+        ('fr-BE', 'Francais (Belgique)'),
+      ],
+      _ => [],
+    };
   }
 
   Widget _sectionTitle(BuildContext context, String text) {
@@ -674,7 +762,13 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Widget _metric(BuildContext context, double width, int value, String label) {
+  Widget _metric(
+    BuildContext context,
+    double width,
+    int value,
+    String label, {
+    String? suffix,
+  }) {
     return SizedBox(
       width: width,
       child: Card(
@@ -684,7 +778,7 @@ class _ProfilePageState extends State<ProfilePage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                '$value',
+                suffix != null ? '$value$suffix' : '$value',
                 style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                   fontWeight: FontWeight.w800,
                 ),

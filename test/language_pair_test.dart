@@ -228,6 +228,55 @@ void main() {
       expect(bridge.storedInterfaceLanguage, VocabularyLanguage.arabic);
     },
   );
+
+  test('pivot lookup AR→FR chains through English when possible', () async {
+    final dict = OfflineDictionary();
+    final arEn = await dict.lookup(
+      'صَعْبُ المَنَالِ',
+      LanguagePair.arabicToEnglish,
+    );
+    expect(arEn, isNotNull);
+    final englishWords = arEn!.translations;
+    String? pivotEnglish;
+    for (final word in englishWords) {
+      final frResult = await dict.lookup(word, LanguagePair.englishToFrench);
+      if (frResult != null) {
+        pivotEnglish = word;
+        break;
+      }
+    }
+    final result = await dict.lookup(
+      'صَعْبُ المَنَالِ',
+      LanguagePair.arabicToFrench,
+    );
+    if (pivotEnglish != null) {
+      expect(
+        result,
+        isNotNull,
+        reason: 'Pivot AR→FR should work through $pivotEnglish',
+      );
+      expect(result!.sourceLanguage, VocabularyLanguage.arabic);
+      expect(result.targetLanguage, VocabularyLanguage.french);
+      expect(result.translations, isNotEmpty);
+    } else {
+      expect(
+        result,
+        isNull,
+        reason: 'No common word found, pivot should return null',
+      );
+    }
+  });
+
+  test('pivot lookup FR→AR returns translations through English', () async {
+    final dict = OfflineDictionary();
+    await dict.load(LanguagePair.frenchToEnglish);
+    await dict.load(LanguagePair.englishToArabic);
+    final result = await dict.lookup('maison', LanguagePair.frenchToArabic);
+    expect(result, isNotNull);
+    expect(result!.sourceLanguage, VocabularyLanguage.french);
+    expect(result.targetLanguage, VocabularyLanguage.arabic);
+    expect(result.translations, isNotEmpty);
+  });
 }
 
 class _MemoryPlatformBridge extends PlatformBridge {

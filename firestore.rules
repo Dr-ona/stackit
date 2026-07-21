@@ -37,6 +37,17 @@ service cloud.firestore {
     //   intervalDays: int (required, 0–60)
     //   nextReviewAt: timestamp|null (required key)
     //   lastReviewedAt: timestamp|null (required key)
+    //   collectionIds: list|null (0–32 strings, each max 64)
+    //   tags: list|null (0–32 strings, each max 64)
+    //   favorite: bool|null
+    //   meaningSource: string|null (max 500)
+    //   fsrsStability: number|null
+    //   fsrsDifficulty: number|null
+    //   fsrsStep: int|null (0–10)
+    //   fsrsState: string|null (new|learning|review|relearning)
+    //   sourceAppName: string|null (max 200)
+    //   sourceUrl: string|null (max 2000)
+    //   contextConsented: bool|null
     //
     // Collection: users/{userId}/profile
     // Document ID: fixed value "main"
@@ -127,7 +138,18 @@ service cloud.firestore {
         'reviewCount',
         'intervalDays',
         'nextReviewAt',
-        'lastReviewedAt'
+        'lastReviewedAt',
+        'collectionIds',
+        'tags',
+        'favorite',
+        'meaningSource',
+        'fsrsStability',
+        'fsrsDifficulty',
+        'fsrsStep',
+        'fsrsState',
+        'sourceAppName',
+        'sourceUrl',
+        'contextConsented'
       ]);
     }
 
@@ -135,6 +157,49 @@ service cloud.firestore {
       return value is string &&
         value.size() >= minLength &&
         value.size() <= maxLength;
+    }
+
+    function isValidOptionalStringList(value, maxItems, maxLength) {
+      return value == null ||
+        (value is list &&
+          value.size() <= maxItems &&
+          isValidStringListAt(value, 0, maxLength) &&
+          isValidStringListAt(value, 1, maxLength) &&
+          isValidStringListAt(value, 2, maxLength) &&
+          isValidStringListAt(value, 3, maxLength) &&
+          isValidStringListAt(value, 4, maxLength) &&
+          isValidStringListAt(value, 5, maxLength) &&
+          isValidStringListAt(value, 6, maxLength) &&
+          isValidStringListAt(value, 7, maxLength) &&
+          isValidStringListAt(value, 8, maxLength) &&
+          isValidStringListAt(value, 9, maxLength) &&
+          isValidStringListAt(value, 10, maxLength) &&
+          isValidStringListAt(value, 11, maxLength) &&
+          isValidStringListAt(value, 12, maxLength) &&
+          isValidStringListAt(value, 13, maxLength) &&
+          isValidStringListAt(value, 14, maxLength) &&
+          isValidStringListAt(value, 15, maxLength) &&
+          isValidStringListAt(value, 16, maxLength) &&
+          isValidStringListAt(value, 17, maxLength) &&
+          isValidStringListAt(value, 18, maxLength) &&
+          isValidStringListAt(value, 19, maxLength) &&
+          isValidStringListAt(value, 20, maxLength) &&
+          isValidStringListAt(value, 21, maxLength) &&
+          isValidStringListAt(value, 22, maxLength) &&
+          isValidStringListAt(value, 23, maxLength) &&
+          isValidStringListAt(value, 24, maxLength) &&
+          isValidStringListAt(value, 25, maxLength) &&
+          isValidStringListAt(value, 26, maxLength) &&
+          isValidStringListAt(value, 27, maxLength) &&
+          isValidStringListAt(value, 28, maxLength) &&
+          isValidStringListAt(value, 29, maxLength) &&
+          isValidStringListAt(value, 30, maxLength) &&
+          isValidStringListAt(value, 31, maxLength));
+    }
+
+    function isValidStringListAt(value, index, maxLength) {
+      return value.size() <= index ||
+        isBoundedString(value[index], 1, maxLength);
     }
 
     function isOptionalBoundedString(value, maxLength) {
@@ -304,7 +369,7 @@ service cloud.firestore {
             'contextualSenseId'
           ]) &&
           data.schemaVersion is int &&
-          data.schemaVersion == 2 &&
+          (data.schemaVersion == 2 || data.schemaVersion == 3) &&
           isValidSenses(data.senses) &&
           isOptionalBoundedString(data.contextualSenseId, 64) &&
           data.translations == data.senses[0].translations &&
@@ -370,7 +435,18 @@ service cloud.firestore {
         data.intervalDays >= 0 &&
         data.intervalDays <= 60 &&
         isOptionalTimestamp(data.nextReviewAt) &&
-        isOptionalTimestamp(data.lastReviewedAt);
+        isOptionalTimestamp(data.lastReviewedAt) &&
+        isValidOptionalStringList(data.collectionIds, 32, 64) &&
+        isValidOptionalStringList(data.tags, 32, 64) &&
+        (data.favorite == null || data.favorite is bool) &&
+        isOptionalBoundedString(data.meaningSource, 500) &&
+        (data.fsrsStability == null || data.fsrsStability is num) &&
+        (data.fsrsDifficulty == null || data.fsrsDifficulty is num) &&
+        (data.fsrsStep == null || (data.fsrsStep is int && data.fsrsStep >= 0 && data.fsrsStep <= 10)) &&
+        (data.fsrsState == null || data.fsrsState in ['new', 'learning', 'review', 'relearning']) &&
+        isOptionalBoundedString(data.sourceAppName, 200) &&
+        isOptionalBoundedString(data.sourceUrl, 2000) &&
+        (data.contextConsented == null || data.contextConsented is bool);
     }
 
     function hasRequiredProfileFields(data) {
@@ -533,6 +609,7 @@ service cloud.firestore {
       allow update: if isOwner(userId) &&
         isValidEntryId(entryId) &&
         uidNotModified() &&
+        request.resource.data.createdAt == resource.data.createdAt &&
         request.resource.data.updatedAt >= resource.data.updatedAt;
     }
 

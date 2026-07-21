@@ -245,7 +245,11 @@ class _ProfileBridge extends PlatformBridge {
   }
 
   @override
-  Future<void> speak(String text, VocabularyLanguage language) async {}
+  Future<void> speak(
+    String text,
+    VocabularyLanguage language, {
+    String? localeTag,
+  }) async {}
 }
 
 class _ProfileStore implements UserProfileCloudStore {

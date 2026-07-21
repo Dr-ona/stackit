@@ -6,6 +6,7 @@ abstract interface class MeaningDiscoveryService {
     String text, {
     required LanguagePair pair,
     DictionaryResult? offlineResult,
+    String? context,
   });
 }
 

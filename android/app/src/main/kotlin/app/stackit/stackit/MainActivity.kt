@@ -51,6 +51,22 @@ class MainActivity : FlutterActivity(), TextToSpeech.OnInitListener {
                             result.success(null)
                         }
                     }
+                    "loadLibrary" -> {
+                        val preferences = getSharedPreferences(preferencesName, MODE_PRIVATE)
+                        result.success(preferences.getString("library", null))
+                    }
+                    "saveLibrary" -> {
+                        val encoded = call.arguments as? String
+                        if (encoded == null) {
+                            result.error("invalid_library", "Expected a JSON string", null)
+                        } else {
+                            getSharedPreferences(preferencesName, MODE_PRIVATE)
+                                .edit()
+                                .putString("library", encoded)
+                                .apply()
+                            result.success(null)
+                        }
+                    }
                     "loadLanguagePair" -> {
                         val preferences = getSharedPreferences(preferencesName, MODE_PRIVATE)
                         result.success(preferences.getString("language_pair", null))
@@ -151,6 +167,25 @@ class MainActivity : FlutterActivity(), TextToSpeech.OnInitListener {
                             result.success(null)
                         }
                     }
+                    "readClipboard" -> {
+                        val clipboard = getSystemService(CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+                        val clip = clipboard?.primaryClip
+                        if (clip != null && clip.itemCount > 0) {
+                            val text = clip.getItemAt(0).text?.toString()?.trim()
+                            if (!text.isNullOrBlank()) {
+                                result.success(mapOf(
+                                    "text" to text,
+                                    "source" to "clipboard",
+                                    "sourceAppName" to "clipboard",
+                                    "timestamp" to System.currentTimeMillis().toString(),
+                                ))
+                            } else {
+                                result.success(null)
+                            }
+                        } else {
+                            result.success(null)
+                        }
+                    }
                     else -> result.notImplemented()
                 }
             }
@@ -190,10 +225,53 @@ class MainActivity : FlutterActivity(), TextToSpeech.OnInitListener {
             else -> null
         }
         if (selected.isNullOrBlank()) return null
+
+        // Try to extract the calling app name from referrer or package
+        val callingPackage = sourceIntent.`package`
+        val referrerName = sourceIntent.getStringExtra(Intent.EXTRA_REFERRER_NAME)
+        val appName = referrerName
+            ?: callingPackage
+            ?: sourceIntent.data?.host
+            ?: resolveAppName(sourceIntent)
+
+        // Try to extract a URL if the shared text contains one
+        val url = extractUrl(selected)
+
+        // Surrounding sentence: try EXTRA_PROCESS_TEXT if available (some apps provide it)
+        val surroundingSentence = if (sourceIntent.action == Intent.ACTION_PROCESS_TEXT) {
+            sourceIntent.getCharSequenceExtra("android.intent.extra.PROCESS_TEXT_CONTEXT")
+                ?.toString()?.trim()
+        } else null
+
         return mapOf(
             "text" to selected,
-            "source" to sourceIntent.getStringExtra(Intent.EXTRA_REFERRER_NAME),
+            "source" to appName,
+            "context" to surroundingSentence,
+            "sourceAppName" to appName,
+            "sourceUrl" to url,
+            "timestamp" to System.currentTimeMillis().toString(),
         )
+    }
+
+    private fun resolveAppName(intent: Intent): String? {
+        return try {
+            val callingActivity = callingActivity ?: return null
+            val packageManager = applicationContext.packageManager
+            val appInfo = packageManager.getApplicationLabel(
+                packageManager.getApplicationInfo(callingActivity.packageName, 0)
+            )
+            appInfo.toString()
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun extractUrl(text: String): String? {
+        val urlPattern = Regex(
+            "(https?://[^\\s\"'<>]+)",
+            RegexOption.IGNORE_CASE,
+        )
+        return urlPattern.find(text)?.value
     }
 
     private fun deliverCapture(capture: Map<String, String?>) {
@@ -222,18 +300,39 @@ class MainActivity : FlutterActivity(), TextToSpeech.OnInitListener {
     }
 
     private fun storePendingCapture(capture: Map<String, String?>) {
-        getSharedPreferences(preferencesName, MODE_PRIVATE)
-            .edit()
-            .putString("pending_capture_text", capture["text"])
-            .apply {
-                val source = capture["source"]
-                if (source.isNullOrBlank()) {
-                    remove("pending_capture_source")
-                } else {
-                    putString("pending_capture_source", source)
-                }
-            }
-            .apply()
+        val prefs = getSharedPreferences(preferencesName, MODE_PRIVATE).edit()
+        prefs.putString("pending_capture_text", capture["text"])
+        val source = capture["source"]
+        if (source.isNullOrBlank()) {
+            prefs.remove("pending_capture_source")
+        } else {
+            prefs.putString("pending_capture_source", source)
+        }
+        val context = capture["context"]
+        if (context.isNullOrBlank()) {
+            prefs.remove("pending_capture_context")
+        } else {
+            prefs.putString("pending_capture_context", context)
+        }
+        val appName = capture["sourceAppName"]
+        if (appName.isNullOrBlank()) {
+            prefs.remove("pending_capture_app_name")
+        } else {
+            prefs.putString("pending_capture_app_name", appName)
+        }
+        val url = capture["sourceUrl"]
+        if (url.isNullOrBlank()) {
+            prefs.remove("pending_capture_url")
+        } else {
+            prefs.putString("pending_capture_url", url)
+        }
+        val timestamp = capture["timestamp"]
+        if (timestamp.isNullOrBlank()) {
+            prefs.remove("pending_capture_timestamp")
+        } else {
+            prefs.putString("pending_capture_timestamp", timestamp)
+        }
+        prefs.apply()
     }
 
     private fun loadPendingCapture(): Map<String, String?>? {
@@ -243,6 +342,10 @@ class MainActivity : FlutterActivity(), TextToSpeech.OnInitListener {
         return mapOf(
             "text" to text,
             "source" to preferences.getString("pending_capture_source", null),
+            "context" to preferences.getString("pending_capture_context", null),
+            "sourceAppName" to preferences.getString("pending_capture_app_name", null),
+            "sourceUrl" to preferences.getString("pending_capture_url", null),
+            "timestamp" to preferences.getString("pending_capture_timestamp", null),
         )
     }
 
@@ -251,6 +354,10 @@ class MainActivity : FlutterActivity(), TextToSpeech.OnInitListener {
             .edit()
             .remove("pending_capture_text")
             .remove("pending_capture_source")
+            .remove("pending_capture_context")
+            .remove("pending_capture_app_name")
+            .remove("pending_capture_url")
+            .remove("pending_capture_timestamp")
             .apply()
     }
 }

@@ -63,7 +63,9 @@ class OfflineDictionary {
     if (pair.source == pair.target) {
       return _sameLanguageResult(selection.trim(), normalized, pair);
     }
-    if (!_binaryPaths.containsKey(pair.id)) return null;
+    if (!_binaryPaths.containsKey(pair.id)) {
+      return _pivotLookup(selection, pair);
+    }
     await load(pair);
     final candidates = <String>{
       normalized,
@@ -105,6 +107,56 @@ class OfflineDictionary {
     }
     if (matchedSource == null) return null;
     return _binaryResult(matchedSource, binaryGroups, pair);
+  }
+
+  Future<DictionaryResult?> _pivotLookup(
+    String selection,
+    LanguagePair pair,
+  ) async {
+    if (pair.source == pair.target) return null;
+    final sourceToEnglish = LanguagePair.route(
+      pair.source,
+      VocabularyLanguage.english,
+    );
+    final englishToTarget = LanguagePair.route(
+      VocabularyLanguage.english,
+      pair.target,
+    );
+    if (sourceToEnglish == null || englishToTarget == null) return null;
+    final firstResult = await lookup(selection, sourceToEnglish);
+    if (firstResult == null) return null;
+    final allTranslations = <String>{};
+    for (final sense in firstResult.senses) {
+      for (final translation in sense.translations) {
+        allTranslations.add(translation);
+      }
+    }
+    final finalTranslations = <String>[];
+    for (final englishWord in allTranslations) {
+      final secondResult = await lookup(englishWord, englishToTarget);
+      if (secondResult != null) {
+        for (final sense in secondResult.senses) {
+          for (final translation in sense.translations) {
+            if (!finalTranslations.contains(translation)) {
+              finalTranslations.add(translation);
+            }
+          }
+        }
+      }
+    }
+    if (finalTranslations.isEmpty) return null;
+    return DictionaryResult.withSenses(
+      sourceText: selection.trim(),
+      senses: [
+        VocabularySense(
+          id: 'pivot',
+          translations: finalTranslations,
+          definition: firstResult.senses.first.definition,
+        ),
+      ],
+      sourceLanguage: pair.source,
+      targetLanguage: pair.target,
+    );
   }
 
   DictionaryResult _sameLanguageResult(

@@ -101,7 +101,6 @@ class FirestoreVocabularyCloudStore implements VocabularyCloudStore {
       'source': entry.source,
       'example': entry.example,
       'exampleTranslation': entry.exampleTranslation,
-      'contextText': entry.contextText,
       'contextualExplanation': entry.contextualExplanation,
       'contextualExample': entry.contextualExample,
       'contextualExampleTranslation': entry.contextualExampleTranslation,
@@ -112,6 +111,21 @@ class FirestoreVocabularyCloudStore implements VocabularyCloudStore {
       'nextReviewAt': _timestamp(entry.nextReviewAt),
       'lastReviewedAt': _timestamp(entry.lastReviewedAt),
       'dictionaryRevision': entry.dictionaryRevision,
+      'collectionIds': entry.collectionIds,
+      'tags': entry.tags,
+      'favorite': entry.favorite,
+      'meaningSource': entry.meaningSource,
+      'fsrsStability': entry.fsrsStability,
+      'fsrsDifficulty': entry.fsrsDifficulty,
+      'fsrsStep': entry.fsrsStep,
+      'fsrsState': entry.fsrsState,
+      ...entry.contextConsented
+          ? {
+              'sourceAppName': entry.sourceAppName,
+              'sourceUrl': entry.sourceUrl,
+              'contextText': entry.contextText,
+            }
+          : {'sourceAppName': null, 'sourceUrl': null, 'contextText': null},
     };
   }
 
@@ -187,6 +201,27 @@ class FirestoreVocabularyCloudStore implements VocabularyCloudStore {
       nextReviewAt: _date(data['nextReviewAt']),
       lastReviewedAt: _date(data['lastReviewedAt']),
       dictionaryRevision: data['dictionaryRevision'] as int? ?? 0,
+      collectionIds: switch (data['collectionIds']) {
+        final List<dynamic> values => values.whereType<String>().toList(
+          growable: false,
+        ),
+        _ => const [],
+      },
+      tags: switch (data['tags']) {
+        final List<dynamic> values => values.whereType<String>().toList(
+          growable: false,
+        ),
+        _ => const [],
+      },
+      favorite: data['favorite'] as bool? ?? false,
+      meaningSource: data['meaningSource'] as String? ?? 'offline',
+      fsrsStability: (data['fsrsStability'] as num?)?.toDouble(),
+      fsrsDifficulty: (data['fsrsDifficulty'] as num?)?.toDouble(),
+      fsrsStep: data['fsrsStep'] as int?,
+      fsrsState: data['fsrsState'] as String? ?? 'new',
+      sourceAppName: data['sourceAppName'] as String?,
+      sourceUrl: data['sourceUrl'] as String?,
+      contextConsented: data['contextConsented'] as bool? ?? false,
       schemaVersion: parsedSenses.isEmpty
           ? 1
           : data['schemaVersion'] as int? ??

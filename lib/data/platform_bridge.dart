@@ -63,6 +63,25 @@ class PlatformBridge {
     }
   }
 
+  Future<Map<String, Object?>?> loadLibrary() async {
+    try {
+      final raw = await _channel.invokeMethod<String>('loadLibrary');
+      if (raw == null || raw.isEmpty) return null;
+      return (jsonDecode(raw) as Map<Object?, Object?>).cast<String, Object?>();
+    } on MissingPluginException {
+      return null;
+    }
+  }
+
+  Future<void> saveLibrary(Map<String, Object?> data) async {
+    final encoded = jsonEncode(data);
+    try {
+      await _channel.invokeMethod<void>('saveLibrary', encoded);
+    } on MissingPluginException {
+      // The in-memory fallback keeps widget tests and unsupported platforms usable.
+    }
+  }
+
   Future<LanguagePair?> loadLanguagePair() async {
     try {
       final id = await _channel.invokeMethod<String>('loadLanguagePair');
@@ -170,14 +189,29 @@ class PlatformBridge {
     }
   }
 
-  Future<void> speak(String text, VocabularyLanguage language) async {
+  Future<void> speak(
+    String text,
+    VocabularyLanguage language, {
+    String? localeTag,
+  }) async {
     try {
       await _channel.invokeMethod<void>('speak', {
         'text': text,
-        'localeTag': language.localeTag,
+        'localeTag': localeTag ?? language.localeTag,
       });
     } on MissingPluginException {
       // Pronunciation is an optional platform capability.
+    }
+  }
+
+  Future<CapturePayload?> readClipboard() async {
+    try {
+      final raw = await _channel.invokeMethod<Map>('readClipboard');
+      if (raw == null) return null;
+      final payload = CapturePayload.fromMap(raw.cast<Object?, Object?>());
+      return payload.text.isEmpty ? null : payload;
+    } on MissingPluginException {
+      return null;
     }
   }
 

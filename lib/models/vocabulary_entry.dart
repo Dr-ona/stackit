@@ -2,7 +2,7 @@ import 'language_pair.dart';
 import 'vocabulary_sense.dart';
 
 class VocabularyEntry {
-  static const currentSchemaVersion = 2;
+  static const currentSchemaVersion = 3;
 
   factory VocabularyEntry({
     required String id,
@@ -26,6 +26,17 @@ class VocabularyEntry {
     DateTime? nextReviewAt,
     DateTime? lastReviewedAt,
     int dictionaryRevision = 0,
+    double? fsrsStability,
+    double? fsrsDifficulty,
+    int? fsrsStep,
+    String fsrsState = 'new',
+    String meaningSource = 'offline',
+    bool favorite = false,
+    List<String> tags = const [],
+    List<String> collectionIds = const [],
+    String? sourceAppName,
+    String? sourceUrl,
+    bool contextConsented = false,
   }) {
     return VocabularyEntry.withSenses(
       id: id,
@@ -53,6 +64,17 @@ class VocabularyEntry {
       nextReviewAt: nextReviewAt,
       lastReviewedAt: lastReviewedAt,
       dictionaryRevision: dictionaryRevision,
+      fsrsStability: fsrsStability,
+      fsrsDifficulty: fsrsDifficulty,
+      fsrsStep: fsrsStep,
+      fsrsState: fsrsState,
+      meaningSource: meaningSource,
+      favorite: favorite,
+      tags: tags,
+      collectionIds: collectionIds,
+      sourceAppName: sourceAppName,
+      sourceUrl: sourceUrl,
+      contextConsented: contextConsented,
     );
   }
 
@@ -77,6 +99,17 @@ class VocabularyEntry {
     this.lastReviewedAt,
     this.dictionaryRevision = 0,
     this.schemaVersion = currentSchemaVersion,
+    this.fsrsStability,
+    this.fsrsDifficulty,
+    this.fsrsStep,
+    this.fsrsState = 'new',
+    this.meaningSource = 'offline',
+    this.favorite = false,
+    this.tags = const [],
+    this.collectionIds = const [],
+    this.sourceAppName,
+    this.sourceUrl,
+    this.contextConsented = false,
   });
 
   final String id;
@@ -99,6 +132,17 @@ class VocabularyEntry {
   final DateTime? lastReviewedAt;
   final int dictionaryRevision;
   final int schemaVersion;
+  final double? fsrsStability;
+  final double? fsrsDifficulty;
+  final int? fsrsStep;
+  final String fsrsState;
+  final String meaningSource;
+  final bool favorite;
+  final List<String> tags;
+  final List<String> collectionIds;
+  final String? sourceAppName;
+  final String? sourceUrl;
+  final bool contextConsented;
 
   VocabularySense get primarySense => senses.first;
   List<String> get translations => primarySense.translations;
@@ -187,6 +231,32 @@ class VocabularyEntry {
       schemaVersion: explicitSenses.isEmpty
           ? 1
           : json['schemaVersion'] as int? ?? currentSchemaVersion,
+      fsrsStability: (json['fsrsStability'] as num?)?.toDouble(),
+      fsrsDifficulty: (json['fsrsDifficulty'] as num?)?.toDouble(),
+      fsrsStep: json['fsrsStep'] as int?,
+      fsrsState:
+          json['fsrsState'] as String? ??
+          _migrateFsrsState(
+            json['reviewCount'] as int? ?? 0,
+            json['intervalDays'] as int? ?? 0,
+          ),
+      meaningSource: json['meaningSource'] as String? ?? 'offline',
+      favorite: json['favorite'] as bool? ?? false,
+      tags: switch (json['tags']) {
+        final List<Object?> values => values.whereType<String>().toList(
+          growable: false,
+        ),
+        _ => const [],
+      },
+      collectionIds: switch (json['collectionIds']) {
+        final List<Object?> values => values.whereType<String>().toList(
+          growable: false,
+        ),
+        _ => const [],
+      },
+      sourceAppName: json['sourceAppName'] as String?,
+      sourceUrl: json['sourceUrl'] as String?,
+      contextConsented: json['contextConsented'] as bool? ?? false,
     );
   }
 
@@ -214,6 +284,17 @@ class VocabularyEntry {
     DateTime? lastReviewedAt,
     DateTime? updatedAt,
     int? dictionaryRevision,
+    double? fsrsStability,
+    double? fsrsDifficulty,
+    int? fsrsStep,
+    String? fsrsState,
+    String? meaningSource,
+    bool? favorite,
+    List<String>? tags,
+    List<String>? collectionIds,
+    String? sourceAppName,
+    String? sourceUrl,
+    bool? contextConsented,
   }) {
     var updatedSenses = senses ?? this.senses;
     if (senses == null &&
@@ -269,6 +350,17 @@ class VocabularyEntry {
       nextReviewAt: nextReviewAt ?? this.nextReviewAt,
       lastReviewedAt: lastReviewedAt ?? this.lastReviewedAt,
       dictionaryRevision: dictionaryRevision ?? this.dictionaryRevision,
+      fsrsStability: fsrsStability ?? this.fsrsStability,
+      fsrsDifficulty: fsrsDifficulty ?? this.fsrsDifficulty,
+      fsrsStep: fsrsStep ?? this.fsrsStep,
+      fsrsState: fsrsState ?? this.fsrsState,
+      meaningSource: meaningSource ?? this.meaningSource,
+      favorite: favorite ?? this.favorite,
+      tags: tags ?? this.tags,
+      collectionIds: collectionIds ?? this.collectionIds,
+      sourceAppName: sourceAppName ?? this.sourceAppName,
+      sourceUrl: sourceUrl ?? this.sourceUrl,
+      contextConsented: contextConsented ?? this.contextConsented,
     );
   }
 
@@ -305,6 +397,17 @@ class VocabularyEntry {
     'nextReviewAt': nextReviewAt?.toIso8601String(),
     'lastReviewedAt': lastReviewedAt?.toIso8601String(),
     'dictionaryRevision': dictionaryRevision,
+    'fsrsStability': fsrsStability,
+    'fsrsDifficulty': fsrsDifficulty,
+    'fsrsStep': fsrsStep,
+    'fsrsState': fsrsState,
+    'meaningSource': meaningSource,
+    'favorite': favorite,
+    'tags': tags,
+    'collectionIds': collectionIds,
+    'sourceAppName': sourceAppName,
+    'sourceUrl': sourceUrl,
+    'contextConsented': contextConsented,
   };
 
   static List<VocabularySense> _parseSenses(Object? value) {
@@ -322,4 +425,13 @@ class VocabularyEntry {
   static DateTime? _optionalDate(Object? value) {
     return value is String ? DateTime.tryParse(value) : null;
   }
+
+  static String _migrateFsrsState(int reviewCount, int intervalDays) {
+    if (reviewCount == 0) return 'new';
+    if (intervalDays == 0) return 'learning';
+    return 'review';
+  }
+
+  static String migrateFsrsState(int reviewCount, int intervalDays) =>
+      _migrateFsrsState(reviewCount, intervalDays);
 }

@@ -10,8 +10,10 @@ import '../profile/profile_page.dart';
 import 'language_pair_sheet.dart';
 import 'vocabulary_controller.dart';
 
-const _privacyUrl = 'https://github.com/Dr-ona/stackit/blob/codex/v0.1-release/docs/privacy.md';
-const _termsUrl = 'https://github.com/Dr-ona/stackit/blob/codex/v0.1-release/docs/terms.md';
+const _privacyUrl =
+    'https://github.com/Dr-ona/stackit/blob/codex/v0.1-release/docs/privacy.md';
+const _termsUrl =
+    'https://github.com/Dr-ona/stackit/blob/codex/v0.1-release/docs/terms.md';
 
 Future<void> showAccountSettings(
   BuildContext context, {
@@ -71,11 +73,52 @@ class _AccountSettingsSheetState extends State<_AccountSettingsSheet> {
               padding: const EdgeInsets.only(bottom: 8),
               child: Row(
                 children: [
-                  const Icon(Icons.cloud_done_outlined, size: 16, color: Color(0xFF657069)),
+                  const Icon(
+                    Icons.cloud_done_outlined,
+                    size: 16,
+                    color: Color(0xFF657069),
+                  ),
                   const SizedBox(width: 6),
-                  Text(
-                    context.l10n.lastSyncedAt(widget.controller.lastCloudSyncTime!),
-                    style: const TextStyle(fontSize: 12, color: Color(0xFF657069)),
+                  Expanded(
+                    child: Text(
+                      '${context.l10n.lastSyncedAt(widget.controller.lastCloudSyncTime!)} \u00b7 ${context.l10n.syncedCount(widget.controller.lastSyncEntryCount)}',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF657069),
+                      ),
+                    ),
+                  ),
+                  if (!widget.controller.isSyncing)
+                    TextButton(
+                      onPressed: () => widget.controller.retryCloudSync(),
+                      child: Text(context.l10n.syncNow),
+                    ),
+                ],
+              ),
+            )
+          else if (widget.controller.cloudSyncError != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.cloud_off_outlined,
+                    size: 16,
+                    color: Color(0xFF9A5A16),
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      widget.controller.cloudSyncError!,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF9A5A16),
+                      ),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () => widget.controller.retryCloudSync(),
+                    child: Text(context.l10n.retry),
                   ),
                 ],
               ),
@@ -85,11 +128,45 @@ class _AccountSettingsSheetState extends State<_AccountSettingsSheet> {
               padding: const EdgeInsets.only(bottom: 8),
               child: Row(
                 children: [
-                  const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)),
+                  const SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
                   const SizedBox(width: 6),
                   Text(
                     context.l10n.syncing,
-                    style: const TextStyle(fontSize: 12, color: Color(0xFF657069)),
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFF657069),
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.cloud_queue_outlined,
+                    size: 16,
+                    color: Color(0xFF657069),
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      context.l10n.notSyncedYet,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF657069),
+                      ),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () => widget.controller.retryCloudSync(),
+                    child: Text(context.l10n.syncNow),
                   ),
                 ],
               ),
@@ -224,8 +301,8 @@ class _AccountSettingsSheetState extends State<_AccountSettingsSheet> {
     final origin = box == null
         ? null
         : box.localToGlobal(Offset.zero) & box.size;
-    await const VocabularyExportService().shareJson(
-      widget.controller.exportJson(),
+    await VocabularyExportService().share(
+      widget.controller.entries,
       sharePositionOrigin: origin,
     );
   }
@@ -332,7 +409,9 @@ class _AccountSettingsSheetState extends State<_AccountSettingsSheet> {
       await widget.authService.deleteCurrentUser();
       if (mounted) Navigator.pop(context);
     } on FirebaseAuthException catch (error) {
-      if (mounted) _message(error.message ?? context.l10n.accountDeletionFailed);
+      if (mounted) {
+        _message(error.message ?? context.l10n.accountDeletionFailed);
+      }
     } on AuthFlowException catch (error) {
       if (mounted) {
         _message(

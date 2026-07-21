@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../../models/vocabulary_entry.dart';
+import 'collection_picker_sheet.dart';
 import 'example_with_translation.dart';
 import 'vocabulary_controller.dart';
 import 'vocabulary_sense_list.dart';
@@ -69,10 +70,72 @@ class _EntryDetails extends StatelessWidget {
         children: [
           Align(
             alignment: AlignmentDirectional.centerStart,
-            child: Chip(
-              avatar: const Icon(Icons.translate_rounded, size: 18),
-              label: Text(entry.languagePair.label),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Chip(
+                  avatar: const Icon(Icons.translate_rounded, size: 18),
+                  label: Text(entry.languagePair.label),
+                ),
+                const SizedBox(width: 8),
+                Chip(
+                  avatar: Icon(
+                    entry.meaningSource == 'gemini'
+                        ? Icons.auto_awesome_rounded
+                        : entry.meaningSource == 'manual'
+                        ? Icons.edit_rounded
+                        : Icons.book_rounded,
+                    size: 16,
+                  ),
+                  label: Text(
+                    entry.meaningSource == 'gemini'
+                        ? 'Gemini'
+                        : entry.meaningSource == 'manual'
+                        ? 'Manual'
+                        : 'Offline',
+                  ),
+                  backgroundColor: const Color(0xFFF0E6D3),
+                ),
+              ],
             ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              if (entry.collectionIds.isNotEmpty)
+                ...entry.collectionIds.take(2).map((id) {
+                  final name = controller.collections
+                      .where((c) => c.id == id)
+                      .map((c) => c.name)
+                      .firstOrNull;
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 6),
+                    child: Chip(
+                      label: Text(
+                        name ?? id,
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                      visualDensity: VisualDensity.compact,
+                      padding: EdgeInsets.zero,
+                    ),
+                  );
+                }),
+              ActionChip(
+                avatar: const Icon(
+                  Icons.collections_bookmark_outlined,
+                  size: 18,
+                ),
+                label: Text(
+                  context.l10n.addToCollection,
+                  style: const TextStyle(fontSize: 12),
+                ),
+                onPressed: () => showCollectionPicker(
+                  context,
+                  controller: controller,
+                  entry: entry,
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 12),
           Row(
@@ -136,32 +199,77 @@ class _EntryDetails extends StatelessWidget {
             sourceText: entry.sourceText,
             sourceLanguage: entry.sourceLanguage,
             targetLanguage: entry.targetLanguage,
+            groupByPartOfSpeech: VocabularySenseList.shouldGroup(entry.senses),
             trailingBuilder: (context, sense) {
               final isExplaining =
                   controller.explainingEntryId == entry.id &&
                   controller.explainingSenseId == sense.id;
-              return IconButton(
-                tooltip: context.l10n.explainWithGemini,
-                onPressed: controller.explainingEntryId == entry.id
-                    ? null
-                    : () => _requestContextExplanation(
-                        context,
-                        entry,
-                        controller,
-                        senseId: sense.id,
+              return Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    tooltip: context.l10n.explainWithGemini,
+                    onPressed: controller.explainingEntryId == entry.id
+                        ? null
+                        : () => _requestContextExplanation(
+                            context,
+                            entry,
+                            controller,
+                            senseId: sense.id,
+                          ),
+                    icon: isExplaining
+                        ? const SizedBox.square(
+                            dimension: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.auto_awesome_rounded),
+                  ),
+                  PopupMenuButton<String>(
+                    tooltip: 'Report',
+                    onSelected: (value) => _reportMeaning(
+                      context,
+                      entry,
+                      controller,
+                      sense.id,
+                      value,
+                    ),
+                    itemBuilder: (context) => [
+                      const PopupMenuItem(
+                        value: 'wrong',
+                        child: Text('Wrong meaning'),
                       ),
-                icon: isExplaining
-                    ? const SizedBox.square(
-                        dimension: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.auto_awesome_rounded),
+                      const PopupMenuItem(
+                        value: 'outdated',
+                        child: Text('Outdated definition'),
+                      ),
+                      const PopupMenuItem(
+                        value: 'offensive',
+                        child: Text('Offensive content'),
+                      ),
+                      const PopupMenuItem(
+                        value: 'other',
+                        child: Text('Other issue'),
+                      ),
+                    ],
+                    icon: const Icon(
+                      Icons.flag_outlined,
+                      size: 20,
+                      color: Color(0xFF657069),
+                    ),
+                  ),
+                ],
               );
             },
           ),
           if (entry.source case final String source when source.isNotEmpty) ...[
             const SizedBox(height: 20),
             _DetailSection(label: context.l10n.capturedFrom, body: source),
+          ],
+          if (entry.sourceAppName != null ||
+              entry.sourceUrl != null ||
+              entry.contextText != null) ...[
+            const SizedBox(height: 16),
+            _ContextConsentBanner(entry: entry, controller: controller),
           ],
           if (entry.contextualExplanation != null) ...[
             const SizedBox(height: 24),
@@ -257,6 +365,86 @@ Future<void> _requestContextExplanation(
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(error.toString())));
+  }
+}
+
+void _reportMeaning(
+  BuildContext context,
+  VocabularyEntry entry,
+  VocabularyController controller,
+  String senseId,
+  String reason,
+) {
+  controller.reportMeaning(entry, senseId, reason);
+  ScaffoldMessenger.of(
+    context,
+  ).showSnackBar(const SnackBar(content: Text('Report submitted. Thank you!')));
+}
+
+class _ContextConsentBanner extends StatelessWidget {
+  const _ContextConsentBanner({required this.entry, required this.controller});
+
+  final VocabularyEntry entry;
+  final VocabularyController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final synced = entry.contextConsented;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: synced ? const Color(0xFFE8F5E9) : const Color(0xFFFFF8E1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: synced ? const Color(0xFFA5D6A7) : const Color(0xFFFFE082),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            synced ? Icons.cloud_done_rounded : Icons.cloud_off_rounded,
+            size: 20,
+            color: synced ? const Color(0xFF2E7D32) : const Color(0xFFF57F17),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  synced
+                      ? context.l10n.syncContextInfo
+                      : context.l10n.contextSyncedLocally,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: synced
+                        ? const Color(0xFF2E7D32)
+                        : const Color(0xFFF57F17),
+                  ),
+                ),
+                if (!synced)
+                  Text(
+                    context.l10n.syncContextDescription,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFF657069),
+                      height: 1.3,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          Switch(
+            value: synced,
+            onChanged: (value) {
+              controller.setContextConsent(entry, value);
+            },
+            activeThumbColor: const Color(0xFF2E7D32),
+          ),
+        ],
+      ),
+    );
   }
 }
 

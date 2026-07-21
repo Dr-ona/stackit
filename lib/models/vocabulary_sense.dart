@@ -24,6 +24,15 @@ class VocabularySense {
     required this.definition,
     this.partOfSpeech,
     this.examples = const [],
+    this.registers = const [],
+    this.synonyms = const [],
+    this.antonyms = const [],
+    this.collocations = const [],
+    this.idioms = const [],
+    this.ipa,
+    this.transliteration,
+    this.gender,
+    this.inflections = const {},
   });
 
   static const legacyId = 'sense-1';
@@ -33,6 +42,15 @@ class VocabularySense {
   final String definition;
   final String? partOfSpeech;
   final List<VocabularyExample> examples;
+  final List<String> registers;
+  final List<String> synonyms;
+  final List<String> antonyms;
+  final List<String> collocations;
+  final List<String> idioms;
+  final String? ipa;
+  final String? transliteration;
+  final String? gender;
+  final Map<String, String> inflections;
 
   String get primaryTranslation => translations.first;
   VocabularyExample? get primaryExample => examples.firstOrNull;
@@ -60,6 +78,37 @@ class VocabularySense {
       definition: (json['definition'] as String? ?? '').trim(),
       partOfSpeech: _cleanOptional(json['partOfSpeech'] as String?),
       examples: examples,
+      registers: switch (json['registers']) {
+        final List<Object?> values => _cleanStrings(values),
+        _ => const [],
+      },
+      synonyms: switch (json['synonyms']) {
+        final List<Object?> values => _cleanStrings(values),
+        _ => const [],
+      },
+      antonyms: switch (json['antonyms']) {
+        final List<Object?> values => _cleanStrings(values),
+        _ => const [],
+      },
+      collocations: switch (json['collocations']) {
+        final List<Object?> values => _cleanStrings(values),
+        _ => const [],
+      },
+      idioms: switch (json['idioms']) {
+        final List<Object?> values => _cleanStrings(values),
+        _ => const [],
+      },
+      ipa: _cleanOptional(json['ipa'] as String?),
+      transliteration: _cleanOptional(json['transliteration'] as String?),
+      gender: _cleanOptional(json['gender'] as String?),
+      inflections: switch (json['inflections']) {
+        final Map<Object?, Object?> values => {
+          for (final entry in values.entries)
+            if (entry.key is String && entry.value is String)
+              entry.key as String: (entry.value as String).trim(),
+        },
+        _ => const {},
+      },
     );
   }
 
@@ -92,6 +141,15 @@ class VocabularySense {
     String? definition,
     String? partOfSpeech,
     List<VocabularyExample>? examples,
+    List<String>? registers,
+    List<String>? synonyms,
+    List<String>? antonyms,
+    List<String>? collocations,
+    List<String>? idioms,
+    String? ipa,
+    String? transliteration,
+    String? gender,
+    Map<String, String>? inflections,
   }) {
     return VocabularySense(
       id: id,
@@ -99,6 +157,15 @@ class VocabularySense {
       definition: definition ?? this.definition,
       partOfSpeech: partOfSpeech ?? this.partOfSpeech,
       examples: examples ?? this.examples,
+      registers: registers ?? this.registers,
+      synonyms: synonyms ?? this.synonyms,
+      antonyms: antonyms ?? this.antonyms,
+      collocations: collocations ?? this.collocations,
+      idioms: idioms ?? this.idioms,
+      ipa: ipa ?? this.ipa,
+      transliteration: transliteration ?? this.transliteration,
+      gender: gender ?? this.gender,
+      inflections: inflections ?? this.inflections,
     );
   }
 
@@ -122,6 +189,15 @@ class VocabularySense {
     'examples': examples
         .map((example) => example.toJson())
         .toList(growable: false),
+    'registers': registers,
+    'synonyms': synonyms,
+    'antonyms': antonyms,
+    'collocations': collocations,
+    'idioms': idioms,
+    if (ipa != null) 'ipa': ipa,
+    if (transliteration != null) 'transliteration': transliteration,
+    if (gender != null) 'gender': gender,
+    if (inflections.isNotEmpty) 'inflections': inflections,
   };
 }
 

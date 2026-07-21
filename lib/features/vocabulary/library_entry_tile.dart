@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../models/capture_payload.dart';
 import '../../models/vocabulary_entry.dart';
 import '../../l10n/app_localizations.dart';
+import 'collection_picker_sheet.dart';
 import 'vocabulary_controller.dart';
 import 'vocabulary_entry_detail_sheet.dart';
 import 'vocabulary_sense_list.dart';
@@ -12,20 +13,29 @@ class LibraryEntryTile extends StatelessWidget {
     super.key,
     required this.entry,
     required this.controller,
+    this.selected = false,
+    this.onTap,
+    this.onLongPress,
   });
 
   final VocabularyEntry entry;
   final VocabularyController controller;
+  final bool selected;
+  final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
 
   @override
   Widget build(BuildContext context) {
     final additionalSenseCount = entry.senses.length - 1;
-    return ExpansionTile(
+    final tile = ExpansionTile(
       key: PageStorageKey<String>('library-${entry.id}'),
       initiallyExpanded: entry.source == CapturePayload.manualSource,
       tilePadding: const EdgeInsets.symmetric(vertical: 5),
       childrenPadding: const EdgeInsets.only(bottom: 12),
       expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
+      leading: selected
+          ? const Icon(Icons.check_circle, color: Color(0xFF356859))
+          : null,
       title: Text(
         entry.sourceText,
         textDirection: entry.sourceLanguage.isRtl
@@ -99,6 +109,15 @@ class LibraryEntryTile extends StatelessWidget {
                 label: Text(context.l10n.pronounce),
               ),
               const Spacer(),
+              IconButton(
+                tooltip: context.l10n.addToCollection,
+                onPressed: () => showCollectionPicker(
+                  context,
+                  controller: controller,
+                  entry: entry,
+                ),
+                icon: const Icon(Icons.collections_bookmark_outlined, size: 20),
+              ),
               TextButton.icon(
                 onPressed: () => showVocabularyEntryDetails(
                   context,
@@ -113,5 +132,7 @@ class LibraryEntryTile extends StatelessWidget {
         ),
       ],
     );
+    if (onLongPress == null && onTap == null) return tile;
+    return GestureDetector(onLongPress: onLongPress, onTap: onTap, child: tile);
   }
 }

@@ -18,8 +18,7 @@ class AppCheckService {
 
     await FirebaseAppCheck.instance.activate(
       providerAndroid: const AndroidPlayIntegrityProvider(),
-      providerApple:
-          const AppleAppAttestWithDeviceCheckFallbackProvider(),
+      providerApple: const AppleAppAttestWithDeviceCheckFallbackProvider(),
     );
   }
 }

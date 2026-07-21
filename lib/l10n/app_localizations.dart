@@ -80,6 +80,11 @@ class AppLocalizations {
     'تعذّر البحث في القاموس. حاول مرة أخرى.',
     'La recherche dans le dictionnaire a échoué. Réessayez.',
   );
+  String get aiLookupInProgress => _pick(
+    'AI lookup in progress…',
+    'جارٍ البحث بالذكاء الاصطناعي…',
+    'Recherche IA en cours…',
+  );
   String get retry => _pick('Retry', 'إعادة المحاولة', 'Réessayer');
   String translateInto(String language) => _pick(
     'Translate into $language',
@@ -177,6 +182,26 @@ class AppLocalizations {
   String get reviewed => _pick('Reviewed', 'تمت مراجعتها', 'Révisés');
   String get mastered => _pick('Mastered', 'متقَنة', 'Maîtrisés');
   String get dueNow => _pick('Due now', 'مستحقة الآن', 'À réviser');
+  String streakDays(int count) => _pick(
+    '$count ${count == 1 ? 'day' : 'days'} streak',
+    '$count ${count == 1 ? 'يوم' : 'أيام'} متتالية',
+    '$count ${count == 1 ? 'jour' : 'jours'} consécutif${count == 1 ? '' : 's'}',
+  );
+  String get noStreak =>
+      _pick('No streak yet', 'لم تبدأ سلسلة بعد', 'Pas encore de série');
+  String retentionPercent(int percent) => _pick(
+    '$percent% retention',
+    '$percent% معدل الاحتفاظ',
+    '$percent% de rétention',
+  );
+  String get retention => _pick('Retention', 'معدل الاحتفاظ', 'Rétention');
+  String partOfSpeechLabel(String value) {
+    final capitalized = value.isEmpty
+        ? value
+        : '${value[0].toUpperCase()}${value.substring(1)}';
+    return _pick(capitalized, capitalized, capitalized);
+  }
+
   String get languages => _pick('Languages', 'اللغات', 'Langues');
   String get nativeLanguage =>
       _pick('Native language', 'اللغة الأم', 'Langue maternelle');
@@ -297,6 +322,13 @@ class AppLocalizations {
       _pick('Save for review', 'حفظ للمراجعة', 'Enregistrer pour révision');
   String get alreadySaved =>
       _pick('Already saved', 'محفوظة مسبقًا', 'Déjà enregistré');
+  String get alreadyInLibrary => _pick(
+    'This word is already in your library.',
+    'هذه الكلمة موجودة بالفعل في مكتبتك.',
+    'Ce mot est déjà dans votre bibliothèque.',
+  );
+  String get viewExisting =>
+      _pick('View existing', 'عرض المحفوظة', 'Voir l\'existant');
   String get continueReading =>
       _pick('Continue reading', 'متابعة القراءة', 'Continuer la lecture');
   String get addWord => _pick(
@@ -309,6 +341,56 @@ class AppLocalizations {
     'إضافة كلمة مباشرةً',
     'Ajouter un mot directement',
   );
+  String get pasteFromClipboard => _pick(
+    'Paste from clipboard',
+    'لصق من الحافظة',
+    'Coller depuis le presse-papiers',
+  );
+  String get clipboardEmpty => _pick(
+    'Clipboard is empty',
+    'الحافظة فارغة',
+    'Le presse-papiers est vide',
+  );
+  String get accent => _pick('Accent', ' اللهجة', 'Accent');
+  String get defaultAccent => _pick('Default', 'الافتراضي', 'Par defaut');
+  String get addToCollection =>
+      _pick('Add to Collection', 'إضافة إلى مجموعة', 'Ajouter a la collection');
+  String get noCollectionsYet => _pick(
+    'No collections yet. Create one below.',
+    'لا توجد مجموعات بعد. أنشئ واحدة أدناه.',
+    'Pas encore de collections. Creez-en une ci-dessous.',
+  );
+  String get newCollectionHint => _pick(
+    'New collection name...',
+    'اسم المجموعة الجديدة...',
+    'Nom de la nouvelle collection...',
+  );
+  String get done => _pick('Done', 'تم', 'Termine');
+  String get howToCapture => _pick(
+    'How to capture words',
+    'كيف تلتقط الكلمات',
+    'Comment capturer des mots',
+  );
+  String get captureStep1 => _pick(
+    'Highlight any word in any app',
+    'حدد أي كلمة في أي تطبيق',
+    'Selectionnez n\'importe quel mot dans une application',
+  );
+  String get captureStep2 => _pick(
+    'Tap "Understand with Stackit" in the menu',
+    'اضغط "افهم مع Stackit" في القائمة',
+    'Appuyez sur "Comprendre avec Stackit" dans le menu',
+  );
+  String get captureStep3 => _pick(
+    'Save the meaning to your vocabulary',
+    'احفظ المعنى في قاموسك',
+    'Enregistrez le sens dans votre vocabulaire',
+  );
+  String get captureMissingHint => _pick(
+    'Don\'t see "Understand with Stackit"? Open your phone\'s text selection settings and enable it.',
+    'لا ترى "افهم مع Stackit"؟ افتح إعدادات تحديد النص في هاتفك وقم بتفعيله.',
+    'Vous ne voyez pas "Comprendre avec Stackit" ? Ouvrez les parametres de selection de texte de votre telephone et activez-le.',
+  );
   String get wordOrPhrase =>
       _pick('Word or phrase', 'كلمة أو عبارة', 'Mot ou expression');
   String get wordOrPhraseHint => _pick(
@@ -318,6 +400,32 @@ class AppLocalizations {
   );
   String get add => _pick('Add', 'إضافة', 'Ajouter');
   String get cancel => _pick('Cancel', 'إلغاء', 'Annuler');
+  String get selectAll =>
+      _pick('Select all', 'تحديد الكل', 'Tout sélectionner');
+  String get deselectAll =>
+      _pick('Deselect all', 'إلغاء التحيد', 'Tout désélectionner');
+  String selectedCount(int count) => _pick(
+    '$count selected',
+    '$count محدد',
+    '$count sélectionné${count == 1 ? '' : 's'}',
+  );
+  String get deleteSelected =>
+      _pick('Delete selected', 'حذف المحدد', 'Supprimer la sélection');
+  String get confirmDeleteSelected => _pick(
+    'Delete selected entries?',
+    'حذف المدخلات المحددة؟',
+    'Supprimer les entrées sélectionnées ?',
+  );
+  String get deleteCollectionOnly => _pick(
+    'Remove collection from entries?',
+    'إزالة المجموعة من المدخلات؟',
+    'Retirer la collection des entrées ?',
+  );
+  String get deleteCollectionOnlyHint => _pick(
+    'Entries will stay in your vocabulary. Only the collection tag is removed.',
+    'ستبقى المدخلات في معجمك. يتم فقط إزالة وسم المجموعة.',
+    'Les entrées restent dans votre vocabulaire. Seul le tag de collection est supprimé.',
+  );
   String get wordSaveFailed => _pick(
     'This word could not be saved. Please try again.',
     'تعذّر حفظ هذه الكلمة. حاول مرة أخرى.',
@@ -554,11 +662,17 @@ class AppLocalizations {
     'آخر مزامنة: ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}',
     'Dernière sync : ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}',
   );
-  String get notSyncedYet => _pick(
-    'Not synced yet',
-    'لم تُزامَن بعد',
-    'Pas encore synchronisé',
+  String get notSyncedYet =>
+      _pick('Not synced yet', 'لم تُزامَن بعد', 'Pas encore synchronisé');
+  String get syncNow => _pick('Sync now', 'مزامنة الآن', 'Synchroniser');
+  String syncedCount(int count) => _pick(
+    'Synced $count ${count == 1 ? 'entry' : 'entries'}',
+    'تمت مزامنة $count ${count == 1 ? 'مدخل' : 'مدخلات'}',
+    '$count ${count == 1 ? 'entrée synchronisée' : 'entrées synchronisées'}',
   );
+  String entryDeleted(String text) =>
+      _pick('"$text" deleted', 'تم حذف "$text"', '"$text" supprimé');
+  String get undo => _pick('Undo', 'تراجع', 'Annuler');
   String get signOut => _pick('Sign out', 'تسجيل الخروج', 'Se déconnecter');
   String get deleteAccount => _pick(
     'Delete account and cloud data',
@@ -577,16 +691,10 @@ class AppLocalizations {
   );
   String get currentPassword =>
       _pick('Current password', 'كلمة المرور الحالية', 'Mot de passe actuel');
-  String get deletePermanently => _pick(
-    'Delete permanently',
-    'حذف نهائي',
-    'Supprimer définitivement',
-  );
-  String get dailyReviewHeader => _pick(
-    'DAILY REVIEW',
-    'المراجعة اليومية',
-    'RÉVISION QUOTIDIENNE',
-  );
+  String get deletePermanently =>
+      _pick('Delete permanently', 'حذف نهائي', 'Supprimer définitivement');
+  String get dailyReviewHeader =>
+      _pick('DAILY REVIEW', 'المراجعة اليومية', 'RÉVISION QUOTIDIENNE');
   String reviewProgress(int position, int total) => _pick(
     '$position of $total',
     '$position من $total',
@@ -614,20 +722,17 @@ class AppLocalizations {
     'فشل حذف الحساب. حاول مرة أخرى.',
     'La suppression du compte a échoué. Réessayez.',
   );
-  String get signInRequired =>
-      _pick('You are not signed in.', 'أنت غير مسجل الدخول.', 'Vous n\'êtes pas connecté.');
-  String get termsOfService => _pick(
-    'Terms of Service',
-    'شروط الخدمة',
-    'Conditions d\'utilisation',
+  String get signInRequired => _pick(
+    'You are not signed in.',
+    'أنت غير مسجل الدخول.',
+    'Vous n\'êtes pas connecté.',
   );
+  String get termsOfService =>
+      _pick('Terms of Service', 'شروط الخدمة', 'Conditions d\'utilisation');
 
   // Entry detail sheet
-  String get verifiedMeaning => _pick(
-    '1 verified meaning',
-    'معنى واحد موثّق',
-    '1 sens vérifié',
-  );
+  String get verifiedMeaning =>
+      _pick('1 verified meaning', 'معنى واحد موثّق', '1 sens vérifié');
   String verifiedMeanings(int count) => _pick(
     '$count verified meanings',
     '$count معانٍ موثّقة',
@@ -638,22 +743,16 @@ class AppLocalizations {
     'اشرح هذا المعنى بالذكاء الاصطناعي',
     'Expliquer ce sens avec Gemini',
   );
-  String get capturedFrom => _pick(
-    'Captured from',
-    'مأخوذ من',
-    'Capturé depuis',
-  );
+  String get capturedFrom =>
+      _pick('Captured from', 'مأخوذ من', 'Capturé depuis');
   String get latestContextualExplanation => _pick(
     'Latest contextual explanation',
     'آخر شرح سياقي',
     'Dernière explication contextuelle',
   );
   String get newExample => _pick('New example', 'مثال جديد', 'Nouvel exemple');
-  String get relatedPhrases => _pick(
-    'Related phrases',
-    'عبارات ذات صلة',
-    'Expressions associées',
-  );
+  String get relatedPhrases =>
+      _pick('Related phrases', 'عبارات ذات صلة', 'Expressions associées');
 
   // Sign-in page errors
   String get enterEmailFirst => _pick(
@@ -703,67 +802,81 @@ class AppLocalizations {
   );
 
   // Controller error messages (accessible without BuildContext)
-  static String offlineMessage(Locale locale) => _pickStatic(locale,
+  static String offlineMessage(Locale locale) => _pickStatic(
+    locale,
     'Offline. Saved locally; sync will retry.',
     'غير متصل. حُفظ محليًا؛ ستتم المحاولة لاحقًا.',
     'Hors ligne. Enregistré localement ; la synchronisation réessayera.',
   );
-  static String permissionDeniedCloudMessage(Locale locale) => _pickStatic(locale,
+  static String permissionDeniedCloudMessage(Locale locale) => _pickStatic(
+    locale,
     'Cloud access was denied. Saved locally; check sign-in or App Check, then retry.',
     'تم رفض الوصول السحابي. حُفظ محليًا. تحقق من تسجيل الدخول أو App Check ثم أعد المحاولة.',
     'Accès cloud refusé. Enregistré localement ; vérifiez la connexion ou App Check, puis réessayez.',
   );
-  static String cloudSyncPausedMessage(Locale locale) => _pickStatic(locale,
+  static String cloudSyncPausedMessage(Locale locale) => _pickStatic(
+    locale,
     'Cloud sync paused. Your local words are safe.',
     'تم إيقاف المزامنة السحابية مؤقتًا. كلماتك المحلية آمنة.',
     'Synchronisation cloud en pause. Vos mots locaux sont en sécurité.',
   );
-  static String profileOfflineMessage(Locale locale) => _pickStatic(locale,
+  static String profileOfflineMessage(Locale locale) => _pickStatic(
+    locale,
     'Profile is available locally and will sync when online.',
     'الملف الشخصي متاح محليًا وسيتم مزامنته عند الاتصال.',
     'Le profil est disponible localement et se synchronisera en ligne.',
   );
-  static String profilePermissionDeniedMessage(Locale locale) => _pickStatic(locale,
+  static String profilePermissionDeniedMessage(Locale locale) => _pickStatic(
+    locale,
     'Profile cloud access needs attention. Local settings are safe.',
     'يحتاج الوصول السحابي للملف الشخصي إلى مراجعة. الإعدادات المحلية آمنة.',
     'L\'accès cloud au profil nécessite une attention. Les paramètres locaux sont en sécurité.',
   );
-  static String profileSyncPausedMessage(Locale locale) => _pickStatic(locale,
+  static String profileSyncPausedMessage(Locale locale) => _pickStatic(
+    locale,
     'Profile sync paused. Local settings are safe.',
     'تم إيقاف مزامنة الملف الشخصي. الإعدادات المحلية آمنة.',
     'Synchronisation du profil en pause. Les paramètres locaux sont en sécurité.',
   );
-  static String translationPending(Locale locale) => _pickStatic(locale,
+  static String translationPending(Locale locale) => _pickStatic(
+    locale,
     'Translation pending',
     'بانتظار المعنى',
     'Traduction en attente',
   );
-  static String meaningNotAvailable(Locale locale) => _pickStatic(locale,
+  static String meaningNotAvailable(Locale locale) => _pickStatic(
+    locale,
     'Meaning not available offline yet.',
     'المعنى غير متاح بدون اتصال.',
     'Sens non disponible hors ligne.',
   );
-  static String sameLanguageStudy(Locale locale) => _pickStatic(locale,
+  static String sameLanguageStudy(Locale locale) => _pickStatic(
+    locale,
     'Saved for same-language study. Use Find all meanings for definitions and examples.',
     'حُفظ لدراسة نفس اللغة. استخدم "إيجاد جميع المعاني" للتعريفات والأمثلة.',
     'Enregistré pour l\'étude dans la même langue. Utilisez Trouver tous les sens pour les définitions et exemples.',
   );
-  static String signInFirst(Locale locale) => _pickStatic(locale,
+  static String signInFirst(Locale locale) => _pickStatic(
+    locale,
     'Sign in before adding a profile photo.',
     'سجّل الدخول قبل إضافة صورة الملف الشخصي.',
     'Connectez-vous avant d\'ajouter une photo de profil.',
   );
-  static String noOfflineRoutes(Locale locale, String languageName) => _pickStatic(locale,
-    'No offline routes translate into $languageName.',
-    'لا توجد ترجمات متاحة بدون اتصال إلى $languageName.',
-    'Aucune route hors ligne ne traduit en $languageName.',
-  );
-  static String meaningDiscoveryNotConfigured(Locale locale) => _pickStatic(locale,
+  static String noOfflineRoutes(Locale locale, String languageName) =>
+      _pickStatic(
+        locale,
+        'No offline routes translate into $languageName.',
+        'لا توجد ترجمات متاحة بدون اتصال إلى $languageName.',
+        'Aucune route hors ligne ne traduit en $languageName.',
+      );
+  static String meaningDiscoveryNotConfigured(Locale locale) => _pickStatic(
+    locale,
     'Meaning discovery is not configured.',
     'اكتشاف المعاني غير مهيأ.',
     'La découverte des sens n\'est pas configurée.',
   );
-  static String contextExplanationUnavailable(Locale locale) => _pickStatic(locale,
+  static String contextExplanationUnavailable(Locale locale) => _pickStatic(
+    locale,
     'Context explanations are not available on this device.',
     'الشروحات السياقية غير متاحة على هذا الجهاز.',
     'Les explications contextuelles ne sont pas disponibles sur cet appareil.',
@@ -786,6 +899,84 @@ class AppLocalizations {
     'Words you save will appear here. Use the Inbox tab to capture new words.',
     'ستظهر الكلمات التي تحفظها هنا. استخدم علامة الصنداد لالتقاط كلمات جديدة.',
     'Les mots que vous enregistrez apparaîtront ici. Utilisez l\'onglet Boîte pour capturer de nouveaux mots.',
+  );
+  String dailyGoalProgress(int reviewed, int goal) => _pick(
+    '$reviewed of $goal daily goal',
+    '$reviewed من $goal هدف يومي',
+    '$reviewed sur $goal objectif quotidien',
+  );
+  String get goalReached => _pick(
+    'Daily goal reached!',
+    'تم تحقيق الهدف اليومي!',
+    'Objectif quotidien atteint !',
+  );
+  String get exerciseSession =>
+      _pick('EXERCISE SESSION', 'جلسة تمارين', 'SESSION D\'EXERCICES');
+  String exerciseProgress(int position, int total) => _pick(
+    'Exercise $position of $total',
+    'تمرين $position من $total',
+    'Exercice $position sur $total',
+  );
+  String get fillInBlank =>
+      _pick('FILL IN THE BLANK', 'أكمل الفراغ', 'COMPLÉTEZ LA PHRASE');
+  String get chooseCorrectTranslation => _pick(
+    'CHOOSE THE CORRECT TRANSLATION',
+    'اختر الترجمة الصحيحة',
+    'CHOISISSEZ LA TRADUCTION CORRECTE',
+  );
+  String get translateToSource => _pick(
+    'TRANSLATE TO SOURCE LANGUAGE',
+    'ترجم إلى اللغة المصدر',
+    'TRADUIRE VERS LA LANGUE SOURCE',
+  );
+  String get whatWordMatches => _pick(
+    'WHAT WORD MATCHES THIS DEFINITION?',
+    'أي كلمة تطابق هذا التعريف?',
+    'QUEL MOT CORRESPOND À CETTE DÉFINITION ?',
+  );
+  String get typeYourAnswer =>
+      _pick('Type your answer...', 'اكتب إجابتك...', 'Tapez votre réponse...');
+  String get check => _pick('Check', 'تحقق', 'Vérifier');
+  String get next => _pick('Next', 'التالي', 'Suivant');
+  String get correctAnswer => _pick('Correct!', 'صحيح!', 'Correct !');
+  String get incorrectAnswer =>
+      _pick('Not quite right', 'ليس صحيحاً', 'Pas tout à fait');
+  String translationIs(String translation) => _pick(
+    'Translation: $translation',
+    'الترجمة: $translation',
+    'Traduction : $translation',
+  );
+  String get noExercisesAvailable => _pick(
+    'No exercises available',
+    'لا توجد تمارين متاحة',
+    'Aucun exercice disponible',
+  );
+  String get collectWordsFirst => _pick(
+    'Collect some words first, then come back for exercises.',
+    'اجمع بعض الكلمات أولاً ثم عُد للتمارين.',
+    'Collectez d\'abord des mots, puis revenez pour les exercices.',
+  );
+  String get exerciseSessionComplete =>
+      _pick('Session Complete!', 'اكتملت الجلسة!', 'Session terminée !');
+  String exerciseScore(int correct, int total) => _pick(
+    '$correct out of $total correct',
+    '$correct من $total صحيح',
+    '$correct sur $total correct',
+  );
+  String get syncContextInfo => _pick(
+    'Sync source app and context to cloud',
+    'مزامنة تطبيق المصدر والسياق إلى السحاب',
+    'Synchroniser l\'application source et le contexte dans le cloud',
+  );
+  String get syncContextDescription => _pick(
+    'Allow syncing which app this word was captured from, its URL, and surrounding sentence. These are kept private and never shared.',
+    'السماح بمزامنة التطبيق الذي تم التقاط الكلمة منه ورابطه والجملة المحيطة. هذه تبقى خاصة ولا تُشارك أبداً.',
+    'Autoriser la synchronisation de l\'application d\'origine, l\'URL et la phrase contextuelle. Ces données restent privées et ne sont jamais partagées.',
+  );
+  String get contextSyncedLocally => _pick(
+    'Saved locally only',
+    'محفوظ محلياً فقط',
+    'Enregistré localement uniquement',
   );
 }
 
