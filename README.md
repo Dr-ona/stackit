@@ -26,8 +26,6 @@ bridge keeps collection fast, the offline dictionary provides a private baseline
 AI is a fallback rather than a hard dependency, and FSRS schedules review per sense
 instead of treating every translation as the same card.
 
-See [the Devpost submission draft](docs/devpost-submission.md) for the judging
-walkthrough, demo outline, and final submission checklist.
 
 ## Features
 
