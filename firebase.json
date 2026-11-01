@@ -1,0 +1,22 @@
+{
+  "auth": {
+    "providers": {
+      "anonymous": false,
+      "emailPassword": true,
+      "googleSignIn": {
+        "oAuthBrandDisplayName": "Stackit",
+        "supportEmail": "khalidona.bk@gmail.com"
+      }
+    }
+  },
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json",
+    "edition": "enterprise",
+    "database": "stackit",
+    "location": "me-central1"
+  },
+  "storage": {
+    "rules": "storage.rules"
+  }
+}
