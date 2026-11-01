@@ -14,10 +14,14 @@ class SearchService {
   }
 
   bool _matchesEntry(VocabularyEntry entry, String normalized) {
-    if (TextAnalyzer.normalizeForSearch(entry.sourceText).contains(normalized)) {
+    if (TextAnalyzer.normalizeForSearch(
+      entry.sourceText,
+    ).contains(normalized)) {
       return true;
     }
-    if (TextAnalyzer.normalizeForSearch(entry.definition).contains(normalized)) {
+    if (TextAnalyzer.normalizeForSearch(
+      entry.definition,
+    ).contains(normalized)) {
       return true;
     }
     if (TextAnalyzer.normalizeForSearch(
@@ -58,7 +62,9 @@ class SearchService {
     )) {
       return true;
     }
-    if (TextAnalyzer.normalizeForSearch(sense.definition).contains(normalized)) {
+    if (TextAnalyzer.normalizeForSearch(
+      sense.definition,
+    ).contains(normalized)) {
       return true;
     }
     for (final example in sense.examples) {

@@ -319,9 +319,7 @@ class _Prompt extends StatelessWidget {
           children: [
             const Icon(Icons.psychology_alt_outlined, size: 20),
             const SizedBox(width: 8),
-            Expanded(
-              child: Text(context.l10n.recallFirst),
-            ),
+            Expanded(child: Text(context.l10n.recallFirst)),
           ],
         ),
       ],

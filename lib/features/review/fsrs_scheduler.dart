@@ -55,9 +55,7 @@ class FsrsScheduler {
     };
     return entry.copyWith(
       reviewCount: entry.reviewCount + 1,
-      intervalDays: nextReview != null
-          ? nextReview.difference(now).inDays.clamp(0, 60)
-          : 0,
+      intervalDays: nextReview.difference(now).inDays.clamp(0, 60),
       lastReviewedAt: now,
       nextReviewAt: nextReview,
       fsrsStability: card.stability,

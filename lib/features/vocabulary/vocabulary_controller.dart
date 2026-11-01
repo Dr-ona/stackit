@@ -383,7 +383,10 @@ class VocabularyController extends ChangeNotifier {
   Future<LanguagePair?> resolveCaptureLanguagePair(String text) async {
     final scriptHint = LanguagePair.detectSourceLanguage(text);
     if (scriptHint == VocabularyLanguage.arabic ||
-        scriptHint == VocabularyLanguage.french) {
+        scriptHint == VocabularyLanguage.french ||
+        scriptHint == VocabularyLanguage.hindi ||
+        scriptHint == VocabularyLanguage.urdu ||
+        scriptHint == VocabularyLanguage.farsi) {
       return _bestAvailableRouteFrom(scriptHint!);
     }
 

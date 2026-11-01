@@ -50,3 +50,6 @@ env/dart_defines.local.json
 
 # Generated Wiktionary source extracts are multi-gigabyte build inputs.
 /third_party/wiktionary/*-extract.jsonl.gz
+
+# API keys and secrets
+tool/.env

@@ -21,8 +21,40 @@ String normalizeFrenchTerm(String value) {
   return value
       .trim()
       .toLowerCase()
-      .replaceAll('’', "'")
+      .replaceAll('\u2019', "'")
       .replaceAll(RegExp(r"^[^a-zà-öø-ÿœæç0-9]+|[^a-zà-öø-ÿœæç0-9]+$"), '')
+      .replaceAll(RegExp(r'\s+'), ' ');
+}
+
+String normalizeHindiTerm(String value) {
+  return value
+      .trim()
+      .replaceAll(RegExp(r'[\u0900-\u0903]'), '')
+      .replaceAll(RegExp(r'[\u093A-\u094C\u0962-\u0963]'), '')
+      .replaceAll('\u093C', '')
+      .replaceAll('\u094D', '')
+      .replaceAll(RegExp(r'^[^\u0900-\u097F0-9]+|[^\u0900-\u097F0-9]+$'), '')
+      .replaceAll(RegExp(r'\s+'), ' ');
+}
+
+String normalizeUrduTerm(String value) {
+  return value
+      .trim()
+      .replaceAll(RegExp(r'[\u064B-\u065F\u0670\u06D6-\u06ED]'), '')
+      .replaceAll('\u0640', '')
+      .replaceAll(RegExp(r'[أإآٱ]'), 'ا')
+      .replaceAll('ى', 'ي')
+      .replaceAll(RegExp(r'^[^\u0600-\u06FF0-9]+|[^\u0600-\u06FF0-9]+$'), '')
+      .replaceAll(RegExp(r'\s+'), ' ');
+}
+
+String normalizeFarsiTerm(String value) {
+  return value
+      .trim()
+      .replaceAll(RegExp(r'[\u064B-\u065F\u0670\u06D6-\u06ED]'), '')
+      .replaceAll('\u0640', '')
+      .replaceAll(RegExp(r'[أإآٱ]'), 'ا')
+      .replaceAll(RegExp(r'^[^\u0600-\u06FF0-9]+|[^\u0600-\u06FF0-9]+$'), '')
       .replaceAll(RegExp(r'\s+'), ' ');
 }
 

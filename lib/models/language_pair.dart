@@ -22,6 +22,30 @@ enum VocabularyLanguage {
     localeTag: 'fr-FR',
     isRtl: false,
     writingSystem: WritingSystem.latin,
+  ),
+  hindi(
+    code: 'hi',
+    label: 'Hindi',
+    nativeLabel: 'हिन्दी',
+    localeTag: 'hi-IN',
+    isRtl: false,
+    writingSystem: WritingSystem.devanagari,
+  ),
+  urdu(
+    code: 'ur',
+    label: 'Urdu',
+    nativeLabel: 'اردو',
+    localeTag: 'ur-PK',
+    isRtl: true,
+    writingSystem: WritingSystem.persian,
+  ),
+  farsi(
+    code: 'fa',
+    label: 'Farsi',
+    nativeLabel: 'فارسی',
+    localeTag: 'fa-IR',
+    isRtl: true,
+    writingSystem: WritingSystem.persian,
   );
 
   const VocabularyLanguage({
@@ -52,7 +76,7 @@ enum VocabularyLanguage {
   }
 }
 
-enum WritingSystem { latin, arabic }
+enum WritingSystem { latin, arabic, devanagari, persian }
 
 class LanguagePair {
   const LanguagePair({required this.source, required this.target});
@@ -101,6 +125,114 @@ class LanguagePair {
     source: VocabularyLanguage.french,
     target: VocabularyLanguage.arabic,
   );
+  static const englishToHindi = LanguagePair(
+    source: VocabularyLanguage.english,
+    target: VocabularyLanguage.hindi,
+  );
+  static const hindiToEnglish = LanguagePair(
+    source: VocabularyLanguage.hindi,
+    target: VocabularyLanguage.english,
+  );
+  static const hindiToHindi = LanguagePair(
+    source: VocabularyLanguage.hindi,
+    target: VocabularyLanguage.hindi,
+  );
+  static const englishToUrdu = LanguagePair(
+    source: VocabularyLanguage.english,
+    target: VocabularyLanguage.urdu,
+  );
+  static const urduToEnglish = LanguagePair(
+    source: VocabularyLanguage.urdu,
+    target: VocabularyLanguage.english,
+  );
+  static const urduToUrdu = LanguagePair(
+    source: VocabularyLanguage.urdu,
+    target: VocabularyLanguage.urdu,
+  );
+  static const englishToFarsi = LanguagePair(
+    source: VocabularyLanguage.english,
+    target: VocabularyLanguage.farsi,
+  );
+  static const farsiToEnglish = LanguagePair(
+    source: VocabularyLanguage.farsi,
+    target: VocabularyLanguage.english,
+  );
+  static const farsiToFarsi = LanguagePair(
+    source: VocabularyLanguage.farsi,
+    target: VocabularyLanguage.farsi,
+  );
+  static const arabicToHindi = LanguagePair(
+    source: VocabularyLanguage.arabic,
+    target: VocabularyLanguage.hindi,
+  );
+  static const hindiToArabic = LanguagePair(
+    source: VocabularyLanguage.hindi,
+    target: VocabularyLanguage.arabic,
+  );
+  static const frenchToHindi = LanguagePair(
+    source: VocabularyLanguage.french,
+    target: VocabularyLanguage.hindi,
+  );
+  static const hindiToFrench = LanguagePair(
+    source: VocabularyLanguage.hindi,
+    target: VocabularyLanguage.french,
+  );
+  static const arabicToUrdu = LanguagePair(
+    source: VocabularyLanguage.arabic,
+    target: VocabularyLanguage.urdu,
+  );
+  static const urduToArabic = LanguagePair(
+    source: VocabularyLanguage.urdu,
+    target: VocabularyLanguage.arabic,
+  );
+  static const frenchToUrdu = LanguagePair(
+    source: VocabularyLanguage.french,
+    target: VocabularyLanguage.urdu,
+  );
+  static const urduToFrench = LanguagePair(
+    source: VocabularyLanguage.urdu,
+    target: VocabularyLanguage.french,
+  );
+  static const arabicToFarsi = LanguagePair(
+    source: VocabularyLanguage.arabic,
+    target: VocabularyLanguage.farsi,
+  );
+  static const farsiToArabic = LanguagePair(
+    source: VocabularyLanguage.farsi,
+    target: VocabularyLanguage.arabic,
+  );
+  static const frenchToFarsi = LanguagePair(
+    source: VocabularyLanguage.french,
+    target: VocabularyLanguage.farsi,
+  );
+  static const farsiToFrench = LanguagePair(
+    source: VocabularyLanguage.farsi,
+    target: VocabularyLanguage.french,
+  );
+  static const hindiToUrdu = LanguagePair(
+    source: VocabularyLanguage.hindi,
+    target: VocabularyLanguage.urdu,
+  );
+  static const urduToHindi = LanguagePair(
+    source: VocabularyLanguage.urdu,
+    target: VocabularyLanguage.hindi,
+  );
+  static const hindiToFarsi = LanguagePair(
+    source: VocabularyLanguage.hindi,
+    target: VocabularyLanguage.farsi,
+  );
+  static const farsiToHindi = LanguagePair(
+    source: VocabularyLanguage.farsi,
+    target: VocabularyLanguage.hindi,
+  );
+  static const urduToFarsi = LanguagePair(
+    source: VocabularyLanguage.urdu,
+    target: VocabularyLanguage.farsi,
+  );
+  static const farsiToUrdu = LanguagePair(
+    source: VocabularyLanguage.farsi,
+    target: VocabularyLanguage.urdu,
+  );
 
   // Product routes and offline dictionary coverage are intentionally separate:
   // every language combination is selectable, while thin routes can be saved
@@ -109,12 +241,39 @@ class LanguagePair {
     englishToEnglish,
     englishToArabic,
     englishToFrench,
+    englishToHindi,
+    englishToUrdu,
+    englishToFarsi,
     arabicToEnglish,
     arabicToArabic,
     arabicToFrench,
+    arabicToHindi,
+    arabicToUrdu,
+    arabicToFarsi,
     frenchToEnglish,
     frenchToArabic,
     frenchToFrench,
+    frenchToHindi,
+    frenchToUrdu,
+    frenchToFarsi,
+    hindiToEnglish,
+    hindiToArabic,
+    hindiToFrench,
+    hindiToHindi,
+    hindiToUrdu,
+    hindiToFarsi,
+    urduToEnglish,
+    urduToArabic,
+    urduToFrench,
+    urduToHindi,
+    urduToUrdu,
+    urduToFarsi,
+    farsiToEnglish,
+    farsiToArabic,
+    farsiToFrench,
+    farsiToHindi,
+    farsiToUrdu,
+    farsiToFarsi,
   ];
 
   static List<VocabularyLanguage> get availableTargets =>
@@ -145,6 +304,12 @@ class LanguagePair {
   }
 
   static VocabularyLanguage? detectSourceLanguage(String text) {
+    final devanagariCount = RegExp(r'[\u0900-\u097F]').allMatches(text).length;
+    if (devanagariCount > 0) return VocabularyLanguage.hindi;
+    final extendedArabicCount = RegExp(
+      r'[\u067E\u0686\u0698\u06AF\u06C3]',
+    ).allMatches(text).length;
+    if (extendedArabicCount > 0) return VocabularyLanguage.urdu;
     final arabicCount = RegExp(
       r'[\u0621-\u063A\u0641-\u064A]',
     ).allMatches(text).length;
@@ -168,10 +333,27 @@ class LanguagePair {
     VocabularyLanguage target,
   ) {
     final candidates = routesTo(target).map((pair) => pair.source).toSet();
+    final devanagariCount = RegExp(r'[\u0900-\u097F]').allMatches(text).length;
+    if (devanagariCount > 0 && candidates.contains(VocabularyLanguage.hindi)) {
+      return VocabularyLanguage.hindi;
+    }
+    final extendedArabicCount = RegExp(
+      r'[\u067E\u0686\u0698\u06AF\u06C3]',
+    ).allMatches(text).length;
+    if (extendedArabicCount > 0) {
+      if (candidates.contains(VocabularyLanguage.urdu)) {
+        return VocabularyLanguage.urdu;
+      }
+      if (candidates.contains(VocabularyLanguage.farsi)) {
+        return VocabularyLanguage.farsi;
+      }
+    }
     final arabicCount = RegExp(
       r'[\u0621-\u063A\u0641-\u064A]',
     ).allMatches(text).length;
-    if (arabicCount > 0) return VocabularyLanguage.arabic;
+    if (arabicCount > 0 && candidates.contains(VocabularyLanguage.arabic)) {
+      return VocabularyLanguage.arabic;
+    }
     final latinCount = RegExp(
       r'[A-Za-zÀ-ÖØ-öø-ÿŒœÆæÇç]',
       unicode: true,
@@ -181,7 +363,9 @@ class LanguagePair {
       r'[À-ÖØ-öø-ÿŒœÆæÇç]',
       unicode: true,
     ).hasMatch(text);
-    if (hasFrenchMarks) return VocabularyLanguage.french;
+    if (hasFrenchMarks && candidates.contains(VocabularyLanguage.french)) {
+      return VocabularyLanguage.french;
+    }
     final latinCandidates = candidates
         .where((language) => language.writingSystem == WritingSystem.latin)
         .toList(growable: false);

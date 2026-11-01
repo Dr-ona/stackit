@@ -158,6 +158,9 @@ class _TestBridge extends PlatformBridge {
   Future<List<VocabularyEntry>> loadEntries() async => entries;
 
   @override
+  Future<Map<String, Object?>?> loadLibrary() async => null;
+
+  @override
   Future<void> saveEntries(List<VocabularyEntry> entries) async {
     this.entries = List.unmodifiable(entries);
   }

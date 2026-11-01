@@ -9,7 +9,7 @@ import 'package:stackit/models/vocabulary_entry.dart';
 
 void main() {
   test('every source and target combination is selectable', () {
-    expect(LanguagePair.supported, hasLength(9));
+    expect(LanguagePair.supported, hasLength(36));
     for (final source in VocabularyLanguage.values) {
       for (final target in VocabularyLanguage.values) {
         expect(LanguagePair.route(source, target), isNotNull);
@@ -316,6 +316,9 @@ class _MemoryPlatformBridge extends PlatformBridge {
 
   @override
   Future<List<VocabularyEntry>> loadEntries() async => storedEntries;
+
+  @override
+  Future<Map<String, Object?>?> loadLibrary() async => null;
 
   @override
   Future<void> saveEntries(List<VocabularyEntry> entries) async {

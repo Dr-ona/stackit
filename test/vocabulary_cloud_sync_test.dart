@@ -146,6 +146,9 @@ class _MemoryPlatformBridge extends PlatformBridge {
   Future<List<VocabularyEntry>> loadEntries() async => stored;
 
   @override
+  Future<Map<String, Object?>?> loadLibrary() async => null;
+
+  @override
   Future<void> saveEntries(List<VocabularyEntry> entries) async {
     stored = List.unmodifiable(entries);
   }

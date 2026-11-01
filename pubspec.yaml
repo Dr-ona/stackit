@@ -90,6 +90,8 @@ flutter:
     - assets/dictionaries/freedict_ar_en.stkdict.gz
     - assets/dictionaries/freedict_en_fr.stkdict.gz
     - assets/dictionaries/freedict_fr_en.stkdict.gz
+    - assets/dictionaries/freedict_en_hi.stkdict.gz
+    - assets/dictionaries/freedict_hi_en.stkdict.gz
     - assets/licenses/freedict-eng-ara-COPYING.txt
     - assets/licenses/freedict-eng-fra-COPYING.txt
     - assets/licenses/freedict-fra-eng-COPYING.txt

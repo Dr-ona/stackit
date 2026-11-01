@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:stackit/data/dictionary_normalization.dart';
+import 'package:stackit/models/language_pair.dart';
 
 /// Builds expanded offline dictionaries by merging:
 /// 1. FreeDict TEI sources (existing)
@@ -29,11 +30,18 @@ const _freedictEnFrPath =
     'third_party/freedict/eng-fra-0.1.6/eng-fra/eng-fra.tei';
 const _freedictFrEnPath =
     'third_party/freedict/fra-eng-0.4.1/fra-eng/fra-eng.tei';
+const _freedictEnHiPath = 'third_party/freedict/eng-hin/eng-hin.tei';
 
 const _outputEnAr = 'assets/dictionaries/freedict_en_ar.stkdict.gz';
 const _outputArEn = 'assets/dictionaries/freedict_ar_en.stkdict.gz';
 const _outputEnFr = 'assets/dictionaries/freedict_en_fr.stkdict.gz';
 const _outputFrEn = 'assets/dictionaries/freedict_fr_en.stkdict.gz';
+const _outputEnHi = 'assets/dictionaries/freedict_en_hi.stkdict.gz';
+const _outputHiEn = 'assets/dictionaries/freedict_hi_en.stkdict.gz';
+const _outputEnUr = 'assets/dictionaries/ai_en_ur.stkdict.gz';
+const _outputUrEn = 'assets/dictionaries/ai_ur_en.stkdict.gz';
+const _outputEnFa = 'assets/dictionaries/ai_en_fa.stkdict.gz';
+const _outputFaEn = 'assets/dictionaries/ai_fa_en.stkdict.gz';
 
 bool _download = false;
 bool _skipWiktionary = false;
@@ -63,23 +71,57 @@ void main(List<String> args) async {
   final arEnFree = _buildReverse(enArFree, normalizeArabicTerm);
   final enFrFree = _readFreeDictTei(_freedictEnFrPath, normalizeEnglishTerm);
   final frEnFree = _readFreeDictTei(_freedictFrEnPath, normalizeFrenchTerm);
+  final enHiFree = _readFreeDictTei(_freedictEnHiPath, normalizeEnglishTerm);
   stdout.writeln('FreeDict EN→AR: ${enArFree.length} entries');
   stdout.writeln('FreeDict AR→EN: ${arEnFree.length} entries');
   stdout.writeln('FreeDict EN→FR: ${enFrFree.length} entries');
   stdout.writeln('FreeDict FR→EN: ${frEnFree.length} entries');
+  stdout.writeln('FreeDict EN→HI: ${enHiFree.length} entries');
 
   // Phase 2: Merge Wiktionary
   final enAr = Map<String, List<List<String>>>.from(enArFree);
   final arEn = Map<String, List<List<String>>>.from(arEnFree);
   final enFr = Map<String, List<List<String>>>.from(enFrFree);
   final frEn = Map<String, List<List<String>>>.from(frEnFree);
+  final enHi = Map<String, List<List<String>>>.from(enHiFree);
+  final hiEn = _buildReverse(enHiFree, normalizeHindiTerm);
+  final enUr = <String, List<List<String>>>{};
+  final urEn = <String, List<List<String>>>{};
+  final enFa = <String, List<List<String>>>{};
+  final faEn = <String, List<List<String>>>{};
   final arFr = <String, List<List<String>>>{};
   final frAr = <String, List<List<String>>>{};
+  final urFa = <String, List<List<String>>>{};
+  final faUr = <String, List<List<String>>>{};
+  final hiUr = <String, List<List<String>>>{};
+  final urHi = <String, List<List<String>>>{};
+  final hiFa = <String, List<List<String>>>{};
+  final faHi = <String, List<List<String>>>{};
 
   if (!_skipWiktionary || _pairsDir != null) {
-    stdout.writeln('\n--- Phase 2: Wiktionary ---');
+    stdout.writeln('\n--- Phase 2: Wiktionary / AI pairs ---');
     if (_pairsDir != null) {
-      _mergePairsDir(_pairsDir!, enAr, arEn, enFr, frEn, arFr, frAr);
+      _mergePairsDir(
+        _pairsDir!,
+        enAr,
+        arEn,
+        enFr,
+        frEn,
+        arFr,
+        frAr,
+        enHi,
+        hiEn,
+        enUr,
+        urEn,
+        enFa,
+        faEn,
+        urFa,
+        faUr,
+        hiUr,
+        urHi,
+        hiFa,
+        faHi,
+      );
     } else if (!_skipWiktionary) {
       await _mergeWiktionaryEn(_wiktionaryEnPath, enAr, arEn, enFr, arFr);
       await _mergeWiktionaryFr(_wiktionaryFrPath, frEn, frAr);
@@ -98,17 +140,47 @@ void main(List<String> args) async {
   final arEnBytes = _writeDictionary(_outputArEn, arEn);
   final enFrBytes = _writeDictionary(_outputEnFr, enFr);
   final frEnBytes = _writeDictionary(_outputFrEn, frEn);
+  final enHiBytes = enHi.isNotEmpty
+      ? _writeDictionary(_outputEnHi, enHi)
+      : null;
+  final hiEnBytes = hiEn.isNotEmpty
+      ? _writeDictionary(_outputHiEn, hiEn)
+      : null;
+  final enUrBytes = enUr.isNotEmpty
+      ? _writeDictionary(_outputEnUr, enUr)
+      : null;
+  final urEnBytes = urEn.isNotEmpty
+      ? _writeDictionary(_outputUrEn, urEn)
+      : null;
+  final enFaBytes = enFa.isNotEmpty
+      ? _writeDictionary(_outputEnFa, enFa)
+      : null;
+  final faEnBytes = faEn.isNotEmpty
+      ? _writeDictionary(_outputFaEn, faEn)
+      : null;
 
   stdout.writeln('\n=== Results ===');
   stdout.writeln('EN→AR: ${enAr.length} entries (${enArBytes.length} bytes)');
   stdout.writeln('AR→EN: ${arEn.length} entries (${arEnBytes.length} bytes)');
   stdout.writeln('EN→FR: ${enFr.length} entries (${enFrBytes.length} bytes)');
   stdout.writeln('FR→EN: ${frEn.length} entries (${frEnBytes.length} bytes)');
-  if (arFr.isNotEmpty) {
-    stdout.writeln('AR→FR: ${arFr.length} entries (pivot, not persisted)');
+  if (enHiBytes != null) {
+    stdout.writeln('EN→HI: ${enHi.length} entries (${enHiBytes.length} bytes)');
+    stdout.writeln(
+      'HI→EN: ${hiEn.length} entries (${hiEnBytes!.length} bytes)',
+    );
   }
-  if (frAr.isNotEmpty) {
-    stdout.writeln('FR→AR: ${frAr.length} entries (pivot, not persisted)');
+  if (enUrBytes != null) {
+    stdout.writeln('EN→UR: ${enUr.length} entries (${enUrBytes.length} bytes)');
+    stdout.writeln(
+      'UR→EN: ${urEn.length} entries (${urEnBytes!.length} bytes)',
+    );
+  }
+  if (enFaBytes != null) {
+    stdout.writeln('EN→FA: ${enFa.length} entries (${enFaBytes.length} bytes)');
+    stdout.writeln(
+      'FA→EN: ${faEn.length} entries (${faEnBytes!.length} bytes)',
+    );
   }
 
   // Compare with FreeDict-only
@@ -129,6 +201,13 @@ void main(List<String> args) async {
     'FR→EN: ${frEnFree.length} → ${frEn.length} '
     '(+${frEn.length - frEnFree.length})',
   );
+  stdout.writeln(
+    'EN→HI: ${enHiFree.length} → ${enHi.length} '
+    '(+${enHi.length - enHiFree.length})',
+  );
+  if (enHi.isNotEmpty) {
+    stdout.writeln('HI→EN: ${hiEn.length} entries');
+  }
 }
 
 void _downloadData() {
@@ -243,9 +322,9 @@ Future<void> _mergeWiktionaryEn(
 
   final inputStream = file.openRead();
   final gzStream = inputStream.transform(gzip.decoder);
-  final lines = gzStream.transform(utf8.decoder).transform(
-        const LineSplitter(),
-      );
+  final lines = gzStream
+      .transform(utf8.decoder)
+      .transform(const LineSplitter());
 
   await for (final line in lines) {
     if (line.isEmpty) continue;
@@ -262,7 +341,6 @@ Future<void> _mergeWiktionaryEn(
     // We need lines with lang_code en|ar|fr AND translations referencing ar|fr|en.
     final hasAr = line.contains('"ar"');
     final hasFr = line.contains('"fr"');
-    final hasEn = line.contains('"en"');
     // Lines must have lang_code en, ar, or fr (all contain quotes around code)
     // AND have at least one cross-language translation target.
     final hasLang = line.contains('"lang_code"');
@@ -364,9 +442,9 @@ Future<void> _mergeWiktionaryFr(
 
   final inputStream = file.openRead();
   final gzStream = inputStream.transform(gzip.decoder);
-  final lines = gzStream.transform(utf8.decoder).transform(
-        const LineSplitter(),
-      );
+  final lines = gzStream
+      .transform(utf8.decoder)
+      .transform(const LineSplitter());
 
   await for (final line in lines) {
     if (line.isEmpty) continue;
@@ -427,6 +505,18 @@ Future<void> _mergeWiktionaryFr(
 // Merge from pre-extracted JSON pair files
 // ---------------------------------------------------------------------------
 
+/// Language-pair normalizer lookup.
+String Function(String) _normalizerFor(VocabularyLanguage lang) {
+  return switch (lang) {
+    VocabularyLanguage.english => normalizeEnglishTerm,
+    VocabularyLanguage.arabic => normalizeArabicTerm,
+    VocabularyLanguage.french => normalizeFrenchTerm,
+    VocabularyLanguage.hindi => normalizeHindiTerm,
+    VocabularyLanguage.urdu => normalizeUrduTerm,
+    VocabularyLanguage.farsi => normalizeFarsiTerm,
+  };
+}
+
 void _mergePairsDir(
   String dir,
   Map<String, List<List<String>>> enAr,
@@ -435,105 +525,107 @@ void _mergePairsDir(
   Map<String, List<List<String>>> frEn,
   Map<String, List<List<String>>> arFr,
   Map<String, List<List<String>>> frAr,
+  Map<String, List<List<String>>> enHi,
+  Map<String, List<List<String>>> hiEn,
+  Map<String, List<List<String>>> enUr,
+  Map<String, List<List<String>>> urEn,
+  Map<String, List<List<String>>> enFa,
+  Map<String, List<List<String>>> faEn,
+  Map<String, List<List<String>>> urFa,
+  Map<String, List<List<String>>> faUr,
+  Map<String, List<List<String>>> hiUr,
+  Map<String, List<List<String>>> urHi,
+  Map<String, List<List<String>>> hiFa,
+  Map<String, List<List<String>>> faHi,
 ) {
-  final enPairsPath = '$dir/en-wikt-pairs.json';
-  final frPairsPath = '$dir/fr-wikt-pairs.json';
+  final allMaps = <String, Map<String, List<List<String>>>>{
+    'en_ar': enAr,
+    'ar_en': arEn,
+    'en_fr': enFr,
+    'fr_en': frEn,
+    'ar_fr': arFr,
+    'fr_ar': frAr,
+    'en_hi': enHi,
+    'hi_en': hiEn,
+    'en_ur': enUr,
+    'ur_en': urEn,
+    'en_fa': enFa,
+    'fa_en': faEn,
+    'ur_fa': urFa,
+    'fa_ur': faUr,
+    'hi_ur': hiUr,
+    'ur_hi': urHi,
+    'hi_fa': hiFa,
+    'fa_hi': faHi,
+  };
 
-  if (File(enPairsPath).existsSync()) {
-    stdout.writeln('  Loading EN Wiktionary pairs from $enPairsPath ...');
-    final data = jsonDecode(File(enPairsPath).readAsStringSync())
-        as Map<String, dynamic>;
-
-    final enArPairs = data['en_ar'] as Map<String, dynamic>? ?? {};
-    final arEnPairs = data['ar_en'] as Map<String, dynamic>? ?? {};
-    final enFrPairs = data['en_fr'] as Map<String, dynamic>? ?? {};
-    var added = 0;
-    for (final entry in enArPairs.entries) {
-      final normalized = normalizeEnglishTerm(entry.key);
-      if (normalized.isEmpty) continue;
-      final targets = (entry.value as List)
-          .map((t) => normalizeArabicTerm(t.toString()))
-          .where((t) => t.isNotEmpty)
-          .toList();
-      if (targets.isNotEmpty) {
-        _addToMap(enAr, normalized, targets);
-        added++;
-      }
-    }
-    stdout.writeln('    EN→AR: +$added entries from Wiktionary');
-
-    added = 0;
-    for (final entry in arEnPairs.entries) {
-      final normalized = normalizeArabicTerm(entry.key);
-      if (normalized.isEmpty) continue;
-      final targets = (entry.value as List)
-          .map((t) => normalizeEnglishTerm(t.toString()))
-          .where((t) => t.isNotEmpty)
-          .toList();
-      if (targets.isNotEmpty) {
-        _addToMap(arEn, normalized, targets);
-        added++;
-      }
-    }
-    stdout.writeln('    AR→EN: +$added entries from Wiktionary');
-
-    added = 0;
-    for (final entry in enFrPairs.entries) {
-      final normalized = normalizeEnglishTerm(entry.key);
-      if (normalized.isEmpty) continue;
-      final targets = (entry.value as List)
-          .map((t) => normalizeFrenchTerm(t.toString()))
-          .where((t) => t.isNotEmpty)
-          .toList();
-      if (targets.isNotEmpty) {
-        _addToMap(enFr, normalized, targets);
-        added++;
-      }
-    }
-    stdout.writeln('    EN→FR: +$added entries from Wiktionary');
-  } else {
-    stdout.writeln('  EN pairs not found at $enPairsPath, skipping');
+  final dirPath = Directory(dir);
+  if (!dirPath.existsSync()) {
+    stdout.writeln('  Pairs directory not found: $dir, skipping');
+    return;
   }
 
-  if (File(frPairsPath).existsSync()) {
-    stdout.writeln('  Loading FR Wiktionary pairs from $frPairsPath ...');
-    final data = jsonDecode(File(frPairsPath).readAsStringSync())
-        as Map<String, dynamic>;
+  for (final file in dirPath.listSync().whereType<File>()) {
+    if (!file.path.endsWith('.json')) continue;
+    final basename = file.uri.pathSegments.last;
+    final pairId = basename.replaceAll('.json', '');
 
-    final frEnPairs = data['fr_en'] as Map<String, dynamic>? ?? {};
-    final frArPairs = data['fr_ar'] as Map<String, dynamic>? ?? {};
-    var added = 0;
-    for (final entry in frEnPairs.entries) {
-      final normalized = normalizeFrenchTerm(entry.key);
-      if (normalized.isEmpty) continue;
-      final targets = (entry.value as List)
-          .map((t) => normalizeEnglishTerm(t.toString()))
-          .where((t) => t.isNotEmpty)
-          .toList();
-      if (targets.isNotEmpty) {
-        _addToMap(frEn, normalized, targets);
-        added++;
-      }
+    // Validate pair ID format: two lowercase letter codes separated by underscore
+    final parts = pairId.split('_');
+    if (parts.length != 2) {
+      stdout.writeln('  Skipping $basename: expected xx_yy format');
+      continue;
     }
-    stdout.writeln('    FR→EN: +$added entries from Wiktionary');
 
-    added = 0;
-    for (final entry in frArPairs.entries) {
-      final normalized = normalizeFrenchTerm(entry.key);
-      if (normalized.isEmpty) continue;
-      final targets = (entry.value as List)
-          .map((t) => normalizeArabicTerm(t.toString()))
-          .where((t) => t.isNotEmpty)
-          .toList();
-      if (targets.isNotEmpty) {
-        _addToMap(frAr, normalized, targets);
-        added++;
-      }
+    final targetMap = allMaps[pairId];
+    if (targetMap == null) {
+      stdout.writeln('  Skipping $basename: unknown pair ID $pairId');
+      continue;
     }
-    stdout.writeln('    FR→AR: +$added entries from Wiktionary');
-  } else {
-    stdout.writeln('  FR pairs not found at $frPairsPath, skipping');
+
+    final sourceLang = _langFromCode(parts[0]);
+    final targetLang = _langFromCode(parts[1]);
+    if (sourceLang == null || targetLang == null) {
+      stdout.writeln('  Skipping $basename: unknown language code');
+      continue;
+    }
+
+    final normalizeSource = _normalizerFor(sourceLang);
+    final normalizeTarget = _normalizerFor(targetLang);
+
+    stdout.writeln('  Loading $basename ...');
+    try {
+      final data = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
+      var added = 0;
+      for (final entry in data.entries) {
+        final normalizedKey = normalizeSource(entry.key);
+        if (normalizedKey.isEmpty) continue;
+        final targets = (entry.value as List)
+            .map((t) => normalizeTarget(t.toString()))
+            .where((t) => t.isNotEmpty)
+            .toList();
+        if (targets.isNotEmpty) {
+          _addToMap(targetMap, normalizedKey, targets);
+          added++;
+        }
+      }
+      stdout.writeln('    $pairId: +$added entries from $basename');
+    } catch (e) {
+      stdout.writeln('    ERROR loading $basename: $e');
+    }
   }
+}
+
+VocabularyLanguage? _langFromCode(String code) {
+  return switch (code) {
+    'en' => VocabularyLanguage.english,
+    'ar' => VocabularyLanguage.arabic,
+    'fr' => VocabularyLanguage.french,
+    'hi' => VocabularyLanguage.hindi,
+    'ur' => VocabularyLanguage.urdu,
+    'fa' => VocabularyLanguage.farsi,
+    _ => null,
+  };
 }
 
 // ---------------------------------------------------------------------------

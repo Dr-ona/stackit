@@ -1,6 +1,4 @@
 import 'dart:async';
-import 'dart:collection';
-import 'dart:math';
 
 import '../models/language_pair.dart';
 import 'gemini_dictionary_service.dart';
@@ -9,10 +7,9 @@ import 'local_dictionary_cache.dart';
 class DictionaryPreCacheService {
   DictionaryPreCacheService({
     required this._cache,
-    required GeminiDictionaryService gemini,
+    required this._gemini,
     int requestsPerMinute = 10,
-  }) : _gemini = gemini,
-       _rpm = requestsPerMinute;
+  }) : _rpm = requestsPerMinute;
 
   final LocalDictionaryCache _cache;
   final GeminiDictionaryService _gemini;
@@ -80,6 +77,12 @@ class DictionaryPreCacheService {
         return _arabicWords;
       case VocabularyLanguage.french:
         return _frenchWords;
+      case VocabularyLanguage.hindi:
+        return _hindiWords;
+      case VocabularyLanguage.urdu:
+        return _urduWords;
+      case VocabularyLanguage.farsi:
+        return _farsiWords;
     }
   }
 
@@ -214,5 +217,133 @@ class DictionaryPreCacheService {
     'vraiment',
     'beaucoup',
     'toujours',
+  ];
+
+  static const _hindiWords = [
+    'नमस्ते',
+    'शुक्रिया',
+    'कृपया',
+    'माफ़ कीजिये',
+    'अलविदा',
+    'हाँ',
+    'नहीं',
+    'पानी',
+    'रोटी',
+    'समय',
+    'दिन',
+    'रात',
+    'आसमान',
+    'ज़मीन',
+    'आग',
+    'किताब',
+    'घर',
+    'सड़क',
+    'शहर',
+    'देश',
+    'पिता',
+    'माता',
+    'भाई',
+    'बहन',
+    'बेटा',
+    'दोस्त',
+    'काम',
+    'पैसा',
+    'प्यार',
+    'ज़िन्दगी',
+    'मौत',
+    'नया',
+    'पुराना',
+    'बड़ा',
+    'छोटा',
+    'अच्छा',
+    'बुरा',
+    'सच्चा',
+    'मुमकिन',
+    'ज़रूरी',
+  ];
+
+  static const _urduWords = [
+    'السلام علیکم',
+    'شکریہ',
+    'معاف کیجیے',
+    'خدا حافظ',
+    'جی ہاں',
+    'نہیں',
+    'پانی',
+    'روٹی',
+    'وقت',
+    'دن',
+    'رات',
+    'آسمان',
+    'زمین',
+    'آگ',
+    'کتاب',
+    'گھر',
+    'سڑک',
+    'شہر',
+    'ملک',
+    'باپ',
+    'ماں',
+    'بھائی',
+    'بہن',
+    'بیٹا',
+    'دوست',
+    'کام',
+    'مال',
+    'محبت',
+    'زندگی',
+    'موت',
+    'نیا',
+    'پرانا',
+    'بڑا',
+    'چھوٹا',
+    'اچھا',
+    'برا',
+    'سچا',
+    'ممکن',
+    'ضروری',
+  ];
+
+  static const _farsiWords = [
+    'سلام',
+    'متشکرم',
+    'لطفاً',
+    'ببخشید',
+    'خداحافظ',
+    'بله',
+    'نه',
+    'آب',
+    'نان',
+    'زمان',
+    'روز',
+    'شب',
+    'آسمان',
+    'زمین',
+    'آتش',
+    'کتاب',
+    'خانه',
+    'خیابان',
+    'شهر',
+    'کشور',
+    'پدر',
+    'مادر',
+    'برادر',
+    'خواهر',
+    'پسر',
+    'دوست',
+    'کار',
+    'پول',
+    'عشق',
+    'زندگی',
+    'مرگ',
+    'جدید',
+    'قدیمی',
+    'بزرگ',
+    'کوچک',
+    'خوب',
+    'بد',
+    'واقعی',
+    'ممکن',
+    'لازم',
   ];
 }

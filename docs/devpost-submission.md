@@ -168,10 +168,16 @@ Return to the capture-to-review flow or logo.
 - [ ] Run the app from a clean checkout or document any required local-only config.
 - [x] Run `dart format --output=none --set-exit-if-changed lib test` — 104
       files checked, 0 changes needed after formatting.
-- [ ] Run `flutter analyze` locally — the submission-prep environment timed out
-      before returning diagnostics.
-- [ ] Run `flutter test` locally — `test/text_analyzer_test.dart` passed all 20
-      tests, but the full suite timed out before test discovery completed.
+- [ ] Run `flutter analyze` locally — after an extended run, the current Windows
+      environment returned no diagnostics and left no active analyzer process.
+- [x] Run the focused release checks — language-pair, offline-dictionary,
+      text-analyzer, and dictionary-hit-rate tests passed (59 tests).
+- [x] Run the full `flutter test --no-pub --concurrency=1` suite — 336 tests
+      passed in about 1 minute 22 seconds after completing the platform mocks.
+- [x] Declare the Hindi offline dictionary assets in `pubspec.yaml` so the
+      `en↔hi` routes are available to release packaging.
+- [ ] Build and smoke-test a fresh signed release APK — the current managed
+      Windows environment blocks the Gradle wrapper with `Access is denied`.
 - [ ] Confirm the repository is public and includes its GPL-3.0 license, or share a
       private repository with `testing@devpost.com` and
       `build-week-event@openai.com`.

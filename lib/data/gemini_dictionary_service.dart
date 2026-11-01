@@ -128,6 +128,12 @@ class GeminiDictionaryService {
         return normalizeArabicTerm(text);
       case VocabularyLanguage.french:
         return normalizeFrenchTerm(text);
+      case VocabularyLanguage.hindi:
+        return normalizeHindiTerm(text);
+      case VocabularyLanguage.urdu:
+        return normalizeUrduTerm(text);
+      case VocabularyLanguage.farsi:
+        return normalizeFarsiTerm(text);
     }
   }
 }

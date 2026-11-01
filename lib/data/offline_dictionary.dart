@@ -18,10 +18,13 @@ class OfflineDictionary {
     'ar_en': 'assets/dictionaries/freedict_ar_en.stkdict.gz',
     'en_fr': 'assets/dictionaries/freedict_en_fr.stkdict.gz',
     'fr_en': 'assets/dictionaries/freedict_fr_en.stkdict.gz',
+    'en_hi': 'assets/dictionaries/freedict_en_hi.stkdict.gz',
+    'hi_en': 'assets/dictionaries/freedict_hi_en.stkdict.gz',
   };
 
   final Map<String, Map<String, DictionaryResult>> _curatedByPair = {};
   final Map<String, _BinaryDictionary> _binaryByPair = {};
+  final Set<String> _missingBinaries = {};
 
   int get freeDictEntryCount =>
       _binaryByPair[LanguagePair.englishToArabic.id]?.recordCount ?? 0;
@@ -35,6 +38,7 @@ class OfflineDictionary {
   ) async {
     for (final pair in LanguagePair.supported) {
       if (pair.source != source || !_binaryPaths.containsKey(pair.id)) continue;
+      if (_missingBinaries.contains(pair.id)) continue;
       if (await lookup(selection, pair) != null) return true;
     }
     return false;
@@ -43,14 +47,17 @@ class OfflineDictionary {
   Future<void> load([LanguagePair pair = LanguagePair.englishToArabic]) async {
     await _loadCurated();
     if (_binaryByPair.containsKey(pair.id)) return;
+    if (_missingBinaries.contains(pair.id)) return;
     final path = _binaryPaths[pair.id];
-    if (path == null) {
-      throw UnsupportedError('Unsupported language pair: ${pair.id}');
+    if (path == null) return;
+    try {
+      final binaryData = await rootBundle.load(path);
+      final compressed = Uint8List.sublistView(binaryData);
+      final binary = Uint8List.fromList(gzip.decode(compressed));
+      _binaryByPair[pair.id] = _BinaryDictionary(binary);
+    } catch (_) {
+      _missingBinaries.add(pair.id);
     }
-    final binaryData = await rootBundle.load(path);
-    final compressed = Uint8List.sublistView(binaryData);
-    final binary = Uint8List.fromList(gzip.decode(compressed));
-    _binaryByPair[pair.id] = _BinaryDictionary(binary);
   }
 
   Future<DictionaryResult?> lookup(
@@ -67,6 +74,9 @@ class OfflineDictionary {
       return _pivotLookup(selection, pair);
     }
     await load(pair);
+    if (_missingBinaries.contains(pair.id)) {
+      return null;
+    }
     final candidates = <String>{
       normalized,
       if (pair.source == VocabularyLanguage.english)
@@ -296,6 +306,9 @@ class OfflineDictionary {
       VocabularyLanguage.english => normalizeEnglishTerm(value),
       VocabularyLanguage.arabic => normalizeArabicTerm(value),
       VocabularyLanguage.french => normalizeFrenchTerm(value),
+      VocabularyLanguage.hindi => normalizeHindiTerm(value),
+      VocabularyLanguage.urdu => normalizeUrduTerm(value),
+      VocabularyLanguage.farsi => normalizeFarsiTerm(value),
     };
   }
 }
